@@ -26,7 +26,7 @@ public class Project extends JFrame implements ActionListener, KeyListener, Mous
     public Project() {
 
         // create JFrame
-        this.setTitle(" Lab  ");
+        this.setTitle("Bouncing Ball Game");
         this.setSize(600,350);
         this.setLocationRelativeTo(this);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
