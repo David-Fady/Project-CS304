@@ -32,6 +32,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private boolean leftArrow, rightArrow, aKey, dKey, upArrow, wKey, downArrow, sKey;
 
     private TextRenderer textRenderer;
+     private SoundManager soundManager; //تعديل 1 للصوت
 
     private final double PADDLE_SPEED = 3.0;
     private final double BALL_SPEED = 3.0;
@@ -58,6 +59,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         createBricksByLevel();
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
+        soundManager = new SoundManager(); // تعديل 2 للصوت
     }
 
     @Override
@@ -333,9 +335,15 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         ball.x += ball.vx;
         ball.y += ball.vy;
 
-        if (ball.x < left) { ball.x = left; ball.vx = Math.abs(ball.vx); }
-        if (ball.x + ball.size > right) { ball.x = right - ball.size; ball.vx = -Math.abs(ball.vx); }
-        if (ball.y + ball.size > top) { ball.y = top - ball.size; ball.vy = -Math.abs(ball.vy); }
+        if (ball.x < left)  { ball.x = left;
+            ball.vx = Math.abs(ball.vx);
+            soundManager.playBallBounce(); /* تعديل الصوت    */         }
+        if (ball.x + ball.size > right)  { ball.x = right - ball.size;
+            ball.vx = -Math.abs(ball.vx);
+            soundManager.playBallBounce();           /*تعديل الصوت*/    }
+        if (ball.y + ball.size > top){ ball.y = top - ball.size;
+            ball.vy = -Math.abs(ball.vy);
+            soundManager.playBallBounce();           /*تعديل الصوت*/    }
 
         handlePaddleCollision(paddleLeft);
         handlePaddleCollision(paddleRight);
@@ -346,7 +354,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
             if (ball.intersects(b)) {
                 it.remove();
                 score++;
-                Toolkit.getDefaultToolkit().beep();
+               //  Toolkit.getDefaultToolkit().beep();
+                soundManager.playBrickExplode(); // تعديل الصوت
 
                 ball.vy = -ball.vy;
                 break;
@@ -364,6 +373,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
             if (Math.abs(ball.vx) < 1.5) ball.vx = 1.5 * (ball.vx > 0 ? 1 : -1);
 
+             soundManager.playBallBounce(); // <--- إضافة: صوت ارتداد المضرب
             ball.vy = Math.abs(ball.vy) + 0.2;
             ball.y = p.y + p.h;
         }
@@ -372,6 +382,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private void checkWin() {
         if (bricks.isEmpty()) {
 
+            soundManager.playLevelWin(); // <--- إضافة: صوت الفوز بالمستوى
+            
             level++;
             currentBallSpeed += 0.5;
             started = false;
@@ -388,6 +400,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private void checkLost() {
         if (ball.y + ball.size < bottom) {
 
+            soundManager.playGameLost(); // <--- إضافة: صوت الخسارة
+            
             JOptionPane.showMessageDialog(null,
                     "You Lost!\nFinal Score: " + score);
 
