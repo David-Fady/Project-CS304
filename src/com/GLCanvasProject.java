@@ -36,6 +36,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private final double PADDLE_SPEED = 3.0;
     private final double BALL_SPEED = 3.0;
 
+    // ------------------------ Basic ----------------------
     @Override
     public void init(GLAutoDrawable glAutoDrawable) {
         GL gl = glAutoDrawable.getGL();
@@ -85,6 +86,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         drawFancyPaddle(gl, paddleLeft.x, paddleLeft.y, paddleLeft.x + paddleLeft.w, paddleLeft.y + paddleLeft.h);
         drawFancyPaddle(gl, paddleRight.x, paddleRight.y, paddleRight.x + paddleRight.w, paddleRight.y + paddleRight.h);
 
+
         drawCircle(gl, ball.x + ball.size/2, ball.y + ball.size/2, ball.size/2, 1f, 0.9f, 0.0f);
 
         textRenderer.beginRendering(500, 300);
@@ -96,8 +98,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     @Override public void reshape(GLAutoDrawable glAutoDrawable, int i, int i1, int i2, int i3) {}
     @Override public void displayChanged(GLAutoDrawable glAutoDrawable, boolean b, boolean b1) {}
-
-    // --------------------------------------------------
 
     // ------------------------ method draw ----------------------
     private void drawBrick(GL gl, double x, double y, double w, double h, Color fillColor) {
@@ -417,6 +417,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         resetBallAttached();
     }
 
+    private void startBall() {
+        ball.vx = (Math.random() > 0.5 ? 1 : -1) * currentBallSpeed;
+        ball.vy = currentBallSpeed;
+        started = true;
+    }
+
+    // ------------------ KeyListener -----------------------
     @Override
     public void keyPressed(KeyEvent e) {
         switch (e.getKeyCode()) {
@@ -450,13 +457,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     @Override public void keyTyped(KeyEvent e) {}
 
-    private void startBall() {
-        ball.vx = (Math.random() > 0.5 ? 1 : -1) * currentBallSpeed;
-        ball.vy = currentBallSpeed;
-        started = true;
-    }
 
-    // ------------------- other class  -----------------------
+    // ------------------- other class  -------------------------
 
     static class Paddle {
         double x, y, w, h;
