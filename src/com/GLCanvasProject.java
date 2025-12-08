@@ -1,4 +1,4 @@
-package com.CS304.TestPro;
+package com;
 
 import com.sun.opengl.util.j2d.TextRenderer;
 import javax.media.opengl.GL;
@@ -21,7 +21,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private List<Brick> bricks = new ArrayList<>();
     private int score = 0;
 
-    private int level = 1; // 🔥 مستوى اللعبة
+    private int level = 1;
     private double currentBallSpeed = 3.0;
 
     // pattern index (1..6)
@@ -74,21 +74,18 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
             updateBall();
         }
 
-        // ---- رسم الطوب باللون الخاص بالمستوى ----
+        // Draw color for each level.
         Color levelColor = getColorForLevel(level);
+
 
         for (Brick b : bricks) {
             drawBrick(gl, b.x, b.y, b.w, b.h, levelColor);
         }
 
-        drawFancyPaddle(gl, paddleLeft.x, paddleLeft.y,
-                paddleLeft.x + paddleLeft.w, paddleLeft.y + paddleLeft.h);
+        drawFancyPaddle(gl, paddleLeft.x, paddleLeft.y, paddleLeft.x + paddleLeft.w, paddleLeft.y + paddleLeft.h);
+        drawFancyPaddle(gl, paddleRight.x, paddleRight.y, paddleRight.x + paddleRight.w, paddleRight.y + paddleRight.h);
 
-        drawFancyPaddle(gl, paddleRight.x, paddleRight.y,
-                paddleRight.x + paddleRight.w, paddleRight.y + paddleRight.h);
-
-        drawCircle(gl, ball.x + ball.size/2, ball.y + ball.size/2,
-                ball.size/2, 1f, 0.9f, 0.0f);
+        drawCircle(gl, ball.x + ball.size/2, ball.y + ball.size/2, ball.size/2, 1f, 0.9f, 0.0f);
 
         textRenderer.beginRendering(500, 300);
         textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
@@ -102,6 +99,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     // --------------------------------------------------
 
+    // ------------------------ method draw ----------------------
     private void drawBrick(GL gl, double x, double y, double w, double h, Color fillColor) {
 
         // fill
@@ -170,11 +168,11 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     // --------------------------------------------------
 
-    /** 🎯 إنشاء الطوب لكل Level مع اختيار Pattern */
+    // ----------- other method --------------------
+
+    // creat square for every level
     private void createBricksByLevel() {
-
         bricks.clear();
-
 
         int cols = 12;
         double brickW = 30;
@@ -308,12 +306,14 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private void updatePaddles() {
         if (leftArrow) paddleRight.x -= PADDLE_SPEED;
         if (rightArrow) paddleRight.x += PADDLE_SPEED;
+        if (upArrow) paddleRight.y += PADDLE_SPEED;
+        if (downArrow) paddleRight.y -= PADDLE_SPEED;
+
         if (aKey) paddleLeft.x -= PADDLE_SPEED;
         if (dKey) paddleLeft.x += PADDLE_SPEED;
-        if (upArrow) paddleRight.y += PADDLE_SPEED;
         if (wKey) paddleLeft.y += PADDLE_SPEED;
-        if (downArrow) paddleRight.y -= PADDLE_SPEED;
         if (sKey) paddleLeft.y -= PADDLE_SPEED;
+
 
         clampPaddle(paddleLeft);
         clampPaddle(paddleRight);
@@ -353,7 +353,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
             }
         }
 
-        checkLevelComplete();
+        checkWin();
         checkLost();
     }
 
@@ -369,7 +369,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         }
     }
 
-    private void checkLevelComplete() {
+    private void checkWin() {
         if (bricks.isEmpty()) {
 
             level++;
@@ -456,7 +456,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         started = true;
     }
 
-    // --------------------------------------------------
+    // ------------------- other class  -----------------------
 
     static class Paddle {
         double x, y, w, h;

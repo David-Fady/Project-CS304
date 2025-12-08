@@ -1,4 +1,4 @@
-package com.CS304.TestPro;
+package com;
 
 import com.sun.opengl.util.FPSAnimator;
 import javax.media.opengl.GLCanvas;
