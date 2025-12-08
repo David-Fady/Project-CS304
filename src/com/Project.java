@@ -1,34 +1,30 @@
 package com;
 
 import com.sun.opengl.util.FPSAnimator;
-
 import javax.media.opengl.GLCanvas;
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.*;
 
+
 public class Project extends JFrame implements ActionListener, KeyListener, MouseListener, MouseMotionListener {
-    public static void main(String[] er){
-
-        Project p = new Project();
-
+    public static void main(String[] er) {
+        EventQueue.invokeLater(() -> new Project());
     }
+
     //------------------DataField--------------------
     GLCanvas canvasT;
     GLCanvasProject lo = new GLCanvasProject();
-    FPSAnimator ani ;
-    JPanel jPanel1;
-    JButton zoomIn;
-    JButton zoomOut;
-
+    FPSAnimator ani;
 
     //------------------Constructor--------------------
     public Project() {
 
+
         // create JFrame
-        this.setTitle("Bouncing Ball Game");
-        this.setSize(600,350);
-        this.setLocationRelativeTo(this);
+        this.setTitle("Brick Breaker");
+        this.setSize(900, 650);
+        this.setLocationRelativeTo(null);
         this.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
 
 
@@ -36,77 +32,40 @@ public class Project extends JFrame implements ActionListener, KeyListener, Mous
         canvasT = new GLCanvas();
         canvasT.addGLEventListener(lo);
 
+
         // add the GLCanvas to JFrame
         this.add(canvasT, BorderLayout.CENTER);
 
 
         // add Key Listener to GLCanvas
-        canvasT.addKeyListener(this);
+        canvasT.addKeyListener(lo);
         // add Mouse Listener to GLCanvas
         canvasT.addMouseListener(this);
-        // add Mouse Listener to GLCanvas
+        // add Mouse Motion Listener to GLCanvas
         canvasT.addMouseMotionListener(this);
 
 
         // create Animator.
-        ani = new FPSAnimator(60);
+        ani = new FPSAnimator(canvasT, 60);
+
 
         // add Canvas to Animator.
-        ani.add(canvasT);
         ani.start();
-
-
-        // create button
-        //-------------(1)----------------
-        zoomIn = new JButton("zoom In");
-        zoomIn.addActionListener(this);
-        zoomIn.setActionCommand("zoomIn");
-        //-------------(2)----------------
-        zoomOut = new JButton("zoom Out");
-        zoomOut.addActionListener(this);
-        zoomOut.setActionCommand("zoomOut");
-
-
-//        // create jPanel
-//        jPanel1 = new JPanel();
-//        jPanel1.setLayout(new FlowLayout());
-
-
-        // add button to JLabel
-//        jPanel1.add(zoomIn);
-//        jPanel1.add(zoomOut);
-
-
-        // add jPanel to JFrame
-//        add(jPanel1,BorderLayout.NORTH);
 
 
         //save
         this.setVisible(true);
 
+
         // request Focus to CanvasT (from Mouse Motion Listener , JText , ... )
         canvasT.requestFocusInWindow();
 
+
     }
+
 
     // ------------------ ActionListener ---------------------
     public void actionPerformed(ActionEvent e) {
-        switch (e.getActionCommand()){
-            case "1" :
-                System.out.println("1");
-                canvasT.repaint();
-                break;
-            case "2" :
-                System.out.println("2");
-                canvasT.repaint();
-                break;
-            case "3" :
-                System.out.println("3");
-                canvasT.repaint();
-                break;
-
-        }
-
     }
 
     // ------------------ KeyListener ---------------------
@@ -119,6 +78,7 @@ public class Project extends JFrame implements ActionListener, KeyListener, Mous
     public void keyReleased(KeyEvent e) {
 
     }
+
 
     // ------------------ MouseListener ---------------------
     public void mouseClicked(MouseEvent e) {
@@ -145,3 +105,32 @@ public class Project extends JFrame implements ActionListener, KeyListener, Mous
 
     }
 }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
