@@ -1,4 +1,4 @@
-package com;
+package com.CS304.TestPro;
 
 import com.sun.opengl.util.FPSAnimator;
 import javax.media.opengl.GLCanvas;
@@ -105,32 +105,3 @@ public class Project extends JFrame implements ActionListener, KeyListener, Mous
 
     }
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
