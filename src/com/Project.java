@@ -9,7 +9,7 @@ import java.awt.event.*;
 
 public class Project extends JFrame implements ActionListener, KeyListener, MouseListener, MouseMotionListener {
     public static void main(String[] er) {
-        EventQueue.invokeLater(() -> new Project());
+        GameWindow.main(args);  
     }
 
     //------------------DataField--------------------
