@@ -44,7 +44,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     private boolean levelCompleted = false;
     private boolean gameOver = false;
 
-
+    
     // flags for paddles (active = visible & participating)
     private boolean leftActive = false;
     private boolean rightActive = true; // default single-player uses right paddle

@@ -64,20 +64,46 @@ public class GameWindow extends JFrame {
     }
 
     private void chooseLevelAndStart(int players) {
-        String input = JOptionPane.showInputDialog(
+        // 1. Defining dropdown options (Levels 1 to 6)
+        Integer[] levels = {1, 2, 3, 4, 5, 6 , 7 , 8 , 9 , 10};
+
+        // 2. Creating the dropdown list (JCombo Box)
+        JComboBox<Integer> levelChooser = new JComboBox<>(levels);
+
+        // 3. Creating a custom message panel containing the dropdown
+        JPanel panel = new JPanel(new BorderLayout(5, 5));
+        panel.add(new JLabel("Select Starting Level:"), BorderLayout.NORTH);
+        panel.add(levelChooser, BorderLayout.CENTER);
+
+        // 4. Displaying the modal dialog (JOptionPane)
+        int option = JOptionPane.showOptionDialog(
                 this,
-                "Enter starting level (1-10):",
-                "Select Level",
-                JOptionPane.QUESTION_MESSAGE
+                panel,
+                "Level Selection",
+                JOptionPane.OK_CANCEL_OPTION,
+                JOptionPane.PLAIN_MESSAGE,
+                null,
+                new String[]{"Start Game", "Cancel"}, // Dialog buttons
+                "Start Game"
         );
 
         int chosenLevel = 1;
-        if (input != null) {
-            try { chosenLevel = Math.max(1, Math.min(10, Integer.parseInt(input))); }
-            catch (NumberFormatException e) { chosenLevel = 1; }
+
+        // 5. Extracting the selected value if the user clicked "Start Game" (OK)
+        if (option == JOptionPane.OK_OPTION) {
+            // Ensure the value is not null before casting it to Integer
+            Object selected = levelChooser.getSelectedItem();
+            if (selected instanceof Integer) {
+                chosenLevel = (Integer) selected;
+            }
+        } else {
+            // If the user clicks Cancel, return to the startMenu
+            card.show(container, "startMenu");
+            return;
         }
 
         startGame(players, chosenLevel);
+
     }
 
     private void startGame(int players, int level) {
