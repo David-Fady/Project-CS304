@@ -41,6 +41,10 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     // mode: 1 => single player, 2 => two players
     private int players = 1;
 
+    private boolean levelCompleted = false;
+    private boolean gameOver = false;
+
+
     // flags for paddles (active = visible & participating)
     private boolean leftActive = false;
     private boolean rightActive = true; // default single-player uses right paddle
@@ -49,20 +53,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         // default players = 1; can call setPlayers before canvas init
     }
 
-    public void setPlayers(int players) {
-        if (players < 1) players = 1;
-        if (players > 2) players = 2;
-        this.players = players;
-
-        // set flags immediately so init() or other flows can rely on them
-        if (players == 1) {
-            rightActive = true;
-            leftActive = false;
-        } else {
-            leftActive = true;
-            rightActive = true;
-        }
-    }
 
     @Override
     public void init(GLAutoDrawable glAutoDrawable) {
@@ -396,6 +386,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         if (leftActive) handlePaddleCollision(paddleLeft);
         if (rightActive) handlePaddleCollision(paddleRight);
 
+        if (levelCompleted) return;
+
         Iterator<Brick> it = bricks.iterator();
         while (it.hasNext()) {
             Brick b = it.next();
@@ -426,32 +418,78 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     }
 
     private void checkWin() {
-        if (bricks.isEmpty()) {
+        if (bricks.isEmpty() && !levelCompleted) {
+            levelCompleted = true;
             if (soundManager != null) soundManager.playLevelWin();
+
+            javax.swing.JOptionPane.showMessageDialog(null,
+                    "Level " + level + " Completed!");
 
             level++;
             currentBallSpeed += 0.5;
             started = false;
 
-            javax.swing.JOptionPane.showMessageDialog(null,
-                    "Level " + (level-1) + " Completed!\nNext Level: " + level);
-
             choosePatternForLevel();
             createBricksByLevel();
             resetBallAttached();
+
+            levelCompleted = false; // جاهز للمستوى الجديد
         }
     }
 
     private void checkLost() {
-        if (ball.y + ball.size < bottom) {
+        if (ball.y + ball.size < bottom && !gameOver) {
+            gameOver = true;
             if (soundManager != null) soundManager.playGameLost();
 
-            javax.swing.JOptionPane.showMessageDialog(null,
-                    "You Lost!\nFinal Score: " + score);
+            // مباشرة نعرض الخيار للمستخدم
+            int choice = javax.swing.JOptionPane.showOptionDialog(null,
+                    "You Lost!\nYour Score: " + score,
+                    "Game Over",
+                    javax.swing.JOptionPane.YES_NO_OPTION,
+                    javax.swing.JOptionPane.INFORMATION_MESSAGE,
+                    null,
+                    new String[]{"Retry Level", "Back to Menu"},
+                    "Retry Level");
 
-            resetAll();
+            if (choice == 0) {
+                // إعادة اللعب على نفس المستوى
+                restartLevel();
+            } else {
+                // العودة للـ Menu
+                returnToMenu();
+            }
         }
     }
+
+    private void restartLevel() {
+        started = false;
+        gameOver = false;
+        // أعد الكرة
+        resetBallAttached();
+        // أعد الطوب فقط إذا أحببت (عادة نخليها زي ما كانت)
+        createBricksByLevel();
+        score = 0;
+    }
+
+    private void returnToMenu() {
+        javax.swing.SwingUtilities.invokeLater(() -> {
+            resetAll();
+            started = false;
+            java.awt.Window[] windows = java.awt.Window.getWindows();
+            for (java.awt.Window w : windows) {
+                if (w instanceof javax.swing.JFrame) {
+                    javax.swing.JFrame frame = (javax.swing.JFrame) w;
+                    frame.getContentPane().removeAll();
+                    new GameWindow();
+                    frame.dispose();
+                    break;
+                }
+            }
+        });
+    }
+
+
 
     private void resetBallAttached() {
         double cx;
@@ -491,6 +529,26 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         ball.vx = (Math.random() > 0.5 ? 1 : -1) * currentBallSpeed;
         ball.vy = currentBallSpeed;
         started = true;
+    }
+
+    public void setLevel(int level) {
+        if (level < 1) level = 1;
+        this.level = level;
+    }
+
+    public void setPlayers(int players) {
+        if (players < 1) players = 1;
+        if (players > 2) players = 2;
+        this.players = players;
+
+        // set flags immediately so init() or other flows can rely on them
+        if (players == 1) {
+            rightActive = true;
+            leftActive = false;
+        } else {
+            leftActive = true;
+            rightActive = true;
+        }
     }
 
     // ------------- key listener --------------

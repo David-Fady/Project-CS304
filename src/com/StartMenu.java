@@ -6,7 +6,6 @@ import java.awt.*;
 import java.awt.event.ActionListener;
 
 public class StartMenu extends JPanel {
-
     JButton onePlayerBtn;
     JButton twoPlayersBtn;
     JButton backBtn;
