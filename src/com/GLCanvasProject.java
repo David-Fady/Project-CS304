@@ -1,20 +1,20 @@
 package com;
-
 import com.sun.opengl.util.j2d.TextRenderer;
 import javax.media.opengl.GL;
 import javax.media.opengl.GLAutoDrawable;
 import javax.media.opengl.GLEventListener;
 import java.awt.*;
 import java.util.*;
-import javax.swing.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.List;
 
-public class GLCanvasProject implements GLEventListener, KeyListener {
+public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.event.MouseListener, java.awt.event.MouseMotionListener {
 
+    // viewport
     private double left = -225, right = 225, bottom = -150, top = 150;
 
+    // game objects
     private Paddle paddleLeft, paddleRight;
     private Ball ball;
     private boolean started = false;
@@ -24,20 +24,45 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     private int level = 1;
     private double currentBallSpeed = 3.0;
 
-    // pattern index (1..6)
     private int patternIndex = 1;
-
     private Random rand = new Random();
 
-    private boolean leftArrow, rightArrow, aKey, dKey, upArrow, wKey, downArrow, sKey;
+    // input states
+    private boolean leftArrow, rightArrow, upArrow, downArrow;
+    private boolean aKey, dKey, wKey, sKey;
 
     private TextRenderer textRenderer;
-     private SoundManager soundManager; //تعديل 1 للصوت
+    private SoundManager soundManager;
 
     private final double PADDLE_SPEED = 3.0;
     private final double BALL_SPEED = 3.0;
 
-    // ------------------------ Basic ----------------------
+    // mode: 1 => single player, 2 => two players
+    private int players = 1;
+
+    // flags for paddles (active = visible & participating)
+    private boolean leftActive = false;
+    private boolean rightActive = true; // default single-player uses right paddle
+
+    public GLCanvasProject() {
+        // default players = 1; can call setPlayers before canvas init
+    }
+
+    public void setPlayers(int players) {
+        if (players < 1) players = 1;
+        if (players > 2) players = 2;
+        this.players = players;
+
+        // set flags immediately so init() or other flows can rely on them
+        if (players == 1) {
+            rightActive = true;
+            leftActive = false;
+        } else {
+            leftActive = true;
+            rightActive = true;
+        }
+    }
+
     @Override
     public void init(GLAutoDrawable glAutoDrawable) {
         GL gl = glAutoDrawable.getGL();
@@ -51,15 +76,23 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         double paddleW = 90, paddleH = 12;
         double initialY = bottom + 40;
 
-        paddleLeft = new Paddle(-110, initialY, paddleW, paddleH);
+        // position paddles
+        // Right paddle always created (may be active/inactive)
         paddleRight = new Paddle(20, initialY, paddleW, paddleH);
+
+        if (leftActive) {
+            paddleLeft = new Paddle(-110, initialY, paddleW, paddleH);
+        } else {
+            // create left paddle off-screen to avoid accidental collisions/drawing
+            paddleLeft = new Paddle(left - 500, initialY, paddleW, paddleH);
+        }
 
         resetBallAttached();
         choosePatternForLevel();
         createBricksByLevel();
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
-        soundManager = new SoundManager(); // تعديل 2 للصوت
+        soundManager = new SoundManager();
     }
 
     @Override
@@ -70,24 +103,42 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         updatePaddles();
 
         if (!started) {
-            double centerX = (paddleLeft.x + paddleLeft.w/2 + paddleRight.x + paddleRight.w/2) / 2.0;
+            // attach ball to the correct paddle depending on flags
+            double centerX;
+            double attachY;
+            if (rightActive && !leftActive) {
+                // single player -> attach above right paddle
+                centerX = paddleRight.x + paddleRight.w / 2.0;
+                attachY = paddleRight.y;
+            } else if (leftActive && !rightActive) {
+                // unlikely, but handle: attach above left
+                centerX = paddleLeft.x + paddleLeft.w / 2.0;
+                attachY = paddleLeft.y;
+            } else {
+                // both active: attach center between paddles
+                centerX = (paddleLeft.x + paddleLeft.w / 2 + paddleRight.x + paddleRight.w / 2) / 2.0;
+                attachY = Math.min(paddleLeft.y, paddleRight.y);
+            }
             ball.x = centerX - ball.size / 2;
-            ball.y = Math.min(paddleLeft.y, paddleRight.y) + 20;
+            ball.y = attachY + 20;
         } else {
             updateBall();
         }
 
-        // Draw color for each level.
         Color levelColor = getColorForLevel(level);
-
 
         for (Brick b : bricks) {
             drawBrick(gl, b.x, b.y, b.w, b.h, levelColor);
         }
 
-        drawFancyPaddle(gl, paddleLeft.x, paddleLeft.y, paddleLeft.x + paddleLeft.w, paddleLeft.y + paddleLeft.h);
-        drawFancyPaddle(gl, paddleRight.x, paddleRight.y, paddleRight.x + paddleRight.w, paddleRight.y + paddleRight.h);
-
+        // draw left paddle only if active
+        if (leftActive) {
+            drawFancyPaddle(gl, paddleLeft.x, paddleLeft.y, paddleLeft.x + paddleLeft.w, paddleLeft.y + paddleLeft.h);
+        }
+        // draw right paddle if active
+        if (rightActive) {
+            drawFancyPaddle(gl, paddleRight.x, paddleRight.y, paddleRight.x + paddleRight.w, paddleRight.y + paddleRight.h);
+        }
 
         drawCircle(gl, ball.x + ball.size/2, ball.y + ball.size/2, ball.size/2, 1f, 0.9f, 0.0f);
 
@@ -95,16 +146,15 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
         textRenderer.draw("Score: " + score, 10, 10);
         textRenderer.draw("Level: " + level, 400, 10);
+        String modeLabel = (leftActive && rightActive) ? "Two Players" : (rightActive ? "One Player" : "One Player (Left?)");
+        textRenderer.draw("Mode: " + modeLabel, 200, 10);
         textRenderer.endRendering();
     }
 
-    @Override public void reshape(GLAutoDrawable glAutoDrawable, int i, int i1, int i2, int i3) {}
-    @Override public void displayChanged(GLAutoDrawable glAutoDrawable, boolean b, boolean b1) {}
+    @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
+    @Override public void displayChanged(GLAutoDrawable d, boolean b, boolean c) {}
 
-    // ------------------------ method draw ----------------------
     private void drawBrick(GL gl, double x, double y, double w, double h, Color fillColor) {
-
-        // fill
         gl.glColor3f(fillColor.getRed()/255f, fillColor.getGreen()/255f, fillColor.getBlue()/255f);
         gl.glBegin(GL.GL_POLYGON);
         gl.glVertex2d(x, y);
@@ -113,7 +163,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         gl.glVertex2d(x, y + h);
         gl.glEnd();
 
-        // border (always black) - set color explicitly
         gl.glLineWidth(3.5f);
         gl.glColor3f(0f, 0f, 0f);
         gl.glBegin(GL.GL_LINE_LOOP);
@@ -125,7 +174,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     }
 
     private void drawFancyPaddle(GL gl, double x1, double y1, double x2, double y2) {
-
         double shadowOffset = -4;
 
         gl.glColor4f(0f, 0f, 0f, 0.35f);
@@ -168,11 +216,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         gl.glEnd();
     }
 
-    // --------------------------------------------------
-
-    // ----------- other method --------------------
-
-    // creat square for every level
+    // ---------- game logic ----------
     private void createBricksByLevel() {
         bricks.clear();
 
@@ -199,7 +243,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
                 }
             }
             break;
-
             case 2:
             {
                 int rows = Math.min(level + 2, 8);
@@ -218,7 +261,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
                 }
             }
             break;
-
             case 3:
             {
                 int rows = level + 2;
@@ -234,7 +276,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
                 }
             }
             break;
-
             case 4:
             {
                 int rows = level + 1;
@@ -249,12 +290,10 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
                 }
             }
             break;
-
             case 5:
             {
                 double centerX = (left + right) / 2.0;
                 double[] relX = { -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5 };
-                double[] relY = { 0, 0, 0, -1, -1, -2, -1, -1, 0, 0, 0 };
                 int baseRows = level + 1;
                 double startY = 60;
                 for (int r = 0; r < baseRows; r++) {
@@ -267,7 +306,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
                 }
             }
             break;
-
             case 6:
             default:
             {
@@ -295,39 +333,41 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     private Color getColorForLevel(int lvl) {
         switch (lvl % 5) {
-            case 1: return new Color(139, 69, 19); // Brown
-            case 2: return new Color(50, 205, 50); // Green
-            case 3: return new Color(65, 105, 225); // Blue
-            case 4: return new Color(220, 20, 60); // Red
-            default: return new Color(128, 0, 128); // Purple
+            case 1: return new Color(139, 69, 19);
+            case 2: return new Color(50, 205, 50);
+            case 3: return new Color(65, 105, 225);
+            case 4: return new Color(220, 20, 60);
+            default: return new Color(128, 0, 128);
         }
     }
 
-    // --------------------------------------------------
-
     private void updatePaddles() {
-        if (leftArrow) paddleRight.x -= PADDLE_SPEED;
-        if (rightArrow) paddleRight.x += PADDLE_SPEED;
-        if (upArrow) paddleRight.y += PADDLE_SPEED;
-        if (downArrow) paddleRight.y -= PADDLE_SPEED;
+        // Right paddle controls (arrows) if rightActive
+        if (rightActive) {
+            if (leftArrow) paddleRight.moveX(-PADDLE_SPEED);
+            if (rightArrow) paddleRight.moveX(PADDLE_SPEED);
+            if (upArrow) paddleRight.moveY(PADDLE_SPEED);
+            if (downArrow) paddleRight.moveY(-PADDLE_SPEED);
+        }
 
-        if (aKey) paddleLeft.x -= PADDLE_SPEED;
-        if (dKey) paddleLeft.x += PADDLE_SPEED;
-        if (wKey) paddleLeft.y += PADDLE_SPEED;
-        if (sKey) paddleLeft.y -= PADDLE_SPEED;
+        // Left paddle controls (WASD) if leftActive
+        if (leftActive) {
+            if (aKey) paddleLeft.moveX(-PADDLE_SPEED);
+            if (dKey) paddleLeft.moveX(PADDLE_SPEED);
+            if (wKey) paddleLeft.moveY(PADDLE_SPEED);
+            if (sKey) paddleLeft.moveY(-PADDLE_SPEED);
+        }
 
-
-        clampPaddle(paddleLeft);
-        clampPaddle(paddleRight);
+        // clamp only active paddles
+        if (leftActive) clampPaddle(paddleLeft);
+        if (rightActive) clampPaddle(paddleRight);
     }
 
     private void clampPaddle(Paddle p) {
         if (p.x < left) p.x = left;
         if (p.x + p.w > right) p.x = right - p.w;
-
         double maxPaddleY = bottom + (top - bottom) * 0.25;
         if (p.y + p.h > maxPaddleY) p.y = maxPaddleY - p.h;
-
         if (p.y < bottom + 10) p.y = bottom + 10;
     }
 
@@ -335,18 +375,25 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         ball.x += ball.vx;
         ball.y += ball.vy;
 
-        if (ball.x < left)  { ball.x = left;
+        if (ball.x < left)  {
+            ball.x = left;
             ball.vx = Math.abs(ball.vx);
-            soundManager.playBallBounce(); /* تعديل الصوت    */         }
-        if (ball.x + ball.size > right)  { ball.x = right - ball.size;
+            if (soundManager != null) soundManager.playBallBounce();
+        }
+        if (ball.x + ball.size > right)  {
+            ball.x = right - ball.size;
             ball.vx = -Math.abs(ball.vx);
-            soundManager.playBallBounce();           /*تعديل الصوت*/    }
-        if (ball.y + ball.size > top){ ball.y = top - ball.size;
+            if (soundManager != null) soundManager.playBallBounce();
+        }
+        if (ball.y + ball.size > top){
+            ball.y = top - ball.size;
             ball.vy = -Math.abs(ball.vy);
-            soundManager.playBallBounce();           /*تعديل الصوت*/    }
+            if (soundManager != null) soundManager.playBallBounce();
+        }
 
-        handlePaddleCollision(paddleLeft);
-        handlePaddleCollision(paddleRight);
+        // check collisions only for active paddles
+        if (leftActive) handlePaddleCollision(paddleLeft);
+        if (rightActive) handlePaddleCollision(paddleRight);
 
         Iterator<Brick> it = bricks.iterator();
         while (it.hasNext()) {
@@ -354,9 +401,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
             if (ball.intersects(b)) {
                 it.remove();
                 score++;
-               //  Toolkit.getDefaultToolkit().beep();
-                soundManager.playBrickExplode(); // تعديل الصوت
-
+                if (soundManager != null) soundManager.playBrickExplode();
                 ball.vy = -ball.vy;
                 break;
             }
@@ -373,7 +418,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
             if (Math.abs(ball.vx) < 1.5) ball.vx = 1.5 * (ball.vx > 0 ? 1 : -1);
 
-             soundManager.playBallBounce(); // <--- إضافة: صوت ارتداد المضرب
+            if (soundManager != null) soundManager.playBallBounce();
             ball.vy = Math.abs(ball.vy) + 0.2;
             ball.y = p.y + p.h;
         }
@@ -381,14 +426,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     private void checkWin() {
         if (bricks.isEmpty()) {
+            if (soundManager != null) soundManager.playLevelWin();
 
-            soundManager.playLevelWin(); // <--- إضافة: صوت الفوز بالمستوى
-            
             level++;
             currentBallSpeed += 0.5;
             started = false;
 
-            JOptionPane.showMessageDialog(null,
+            javax.swing.JOptionPane.showMessageDialog(null,
                     "Level " + (level-1) + " Completed!\nNext Level: " + level);
 
             choosePatternForLevel();
@@ -399,10 +443,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     private void checkLost() {
         if (ball.y + ball.size < bottom) {
+            if (soundManager != null) soundManager.playGameLost();
 
-            soundManager.playGameLost(); // <--- إضافة: صوت الخسارة
-            
-            JOptionPane.showMessageDialog(null,
+            javax.swing.JOptionPane.showMessageDialog(null,
                     "You Lost!\nFinal Score: " + score);
 
             resetAll();
@@ -410,8 +453,20 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
     }
 
     private void resetBallAttached() {
-        double cx = (paddleLeft.x + paddleLeft.w/2 + paddleRight.x + paddleRight.w/2) / 2;
-        double py = Math.min(paddleLeft.y, paddleRight.y);
+        double cx;
+        double py;
+
+        if (rightActive && !leftActive) {
+            cx = paddleRight.x + paddleRight.w / 2.0;
+            py = paddleRight.y;
+        } else if (leftActive && !rightActive) {
+            cx = paddleLeft.x + paddleLeft.w / 2.0;
+            py = paddleLeft.y;
+        } else {
+            cx = (paddleLeft.x + paddleLeft.w / 2 + paddleRight.x + paddleRight.w / 2) / 2.0;
+            py = Math.min(paddleLeft.y, paddleRight.y);
+        }
+
         ball = new Ball(cx - 4, py + 20, 8);
         ball.vx = 0; ball.vy = 0; started = false;
     }
@@ -425,8 +480,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         createBricksByLevel();
 
         double initialY = bottom + 40;
-        paddleLeft.y = initialY;
-        paddleRight.y = initialY;
+        if (leftActive) paddleLeft.y = initialY;
+        if (rightActive) paddleRight.y = initialY;
 
         resetBallAttached();
     }
@@ -437,7 +492,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
         started = true;
     }
 
-    // ------------------ KeyListener -----------------------
+    // ------------- key listener --------------
     @Override
     public void keyPressed(KeyEvent e) {
         switch (e.getKeyCode()) {
@@ -471,14 +526,27 @@ public class GLCanvasProject implements GLEventListener, KeyListener {
 
     @Override public void keyTyped(KeyEvent e) {}
 
+    // MouseListener methods
+    @Override public void mouseClicked(java.awt.event.MouseEvent e) {}
+    @Override public void mousePressed(java.awt.event.MouseEvent e) {}
+    @Override public void mouseReleased(java.awt.event.MouseEvent e) {}
+    @Override public void mouseEntered(java.awt.event.MouseEvent e) {}
+    @Override public void mouseExited(java.awt.event.MouseEvent e) {}
 
-    // ------------------- other class  -------------------------
+    // MouseMotionListener methods
+    @Override public void mouseDragged(java.awt.event.MouseEvent e) {}
+    @Override public void mouseMoved(java.awt.event.MouseEvent e) {}
 
+    // -------------- inner classes --------------
     static class Paddle {
         double x, y, w, h;
         Paddle(double x, double y, double w, double h) {
             this.x = x; this.y = y; this.w = w; this.h = h;
         }
+        void moveX(double delta) { this.x += delta; }
+        void moveY(double delta) { this.y += delta; }
+        void centerAt(double cx) { this.x = cx - this.w / 2.0; }
+        boolean isVisible() { return this.w > 0; }
     }
 
     static class Ball {
