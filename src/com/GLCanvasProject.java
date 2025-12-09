@@ -44,10 +44,14 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     private boolean levelCompleted = false;
     private boolean gameOver = false;
 
-    
+
     // flags for paddles (active = visible & participating)
     private boolean leftActive = false;
     private boolean rightActive = true; // default single-player uses right paddle
+
+    // lives
+    private int lives = 3;
+    private final int maxLives = 3;
 
     public GLCanvasProject() {
         // default players = 1; can call setPlayers before canvas init
@@ -84,6 +88,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
         soundManager = new SoundManager();
+
+        // ensure lives are initialized
+        lives = maxLives;
     }
 
     @Override
@@ -140,6 +147,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         String modeLabel = (leftActive && rightActive) ? "Two Players" : (rightActive ? "One Player" : "One Player (Left?)");
         textRenderer.draw("Mode: " + modeLabel, 200, 10);
         textRenderer.endRendering();
+
+        // draw lives as hearts in top-right
+        drawLives(gl);
     }
 
     @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
@@ -204,6 +214,55 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
             double ang = 2 * Math.PI * i / steps;
             gl.glVertex2d(Math.cos(ang)*radius + cx, Math.sin(ang)*radius + cy);
         }
+        gl.glEnd();
+    }
+
+    // ---------- hearts drawing ----------
+    private void drawLives(GL gl) {
+        double size = 9; // visual size of each heart (reduced)
+        double margin = 12;
+
+        for (int i = 0; i < maxLives; i++) {
+            // position hearts from top-right towards left
+            double xCenter = right - margin - (i * (size + 6)) - size/2.0;
+            double yCenter = top - margin - size/2.0;
+
+            boolean filled = (i < lives);
+            drawHeart(gl, xCenter, yCenter, size, filled);
+        }
+    }
+
+    /**
+     * Draws a heart shape centered at (cx,cy).
+     * size roughly controls overall width/height.
+     * If filled==true -> filled red polygon, else -> gray outline.
+     */
+    private void drawHeart(GL gl, double cx, double cy, double size, boolean filled) {
+        int segments = 100; // smoothness
+        // use parametric heart curve scaled to 'size'
+        double scale = size / 20.0; // tuned factor
+
+        if (filled) {
+            gl.glColor3f(0.85f, 0.05f, 0.15f); // red
+            gl.glBegin(GL.GL_POLYGON);
+        } else {
+            gl.glColor3f(0.6f, 0.6f, 0.6f); // gray outline
+            gl.glLineWidth(2f);
+            gl.glBegin(GL.GL_LINE_LOOP);
+        }
+
+        for (int i = 0; i < segments; i++) {
+            double t = (2 * Math.PI * i) / segments;
+            // classic heart parametric form
+            double x = 16 * Math.pow(Math.sin(t), 3);
+            double y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
+
+            double px = x * scale + cx;
+            double py = y * scale + cy;
+
+            gl.glVertex2d(px, py);
+        }
+
         gl.glEnd();
     }
 
@@ -439,25 +498,37 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
 
     private void checkLost() {
         if (ball.y + ball.size < bottom && !gameOver) {
-            gameOver = true;
-            if (soundManager != null) soundManager.playGameLost();
-
-            // مباشرة نعرض الخيار للمستخدم
-            int choice = javax.swing.JOptionPane.showOptionDialog(null,
-                    "You Lost!\nYour Score: " + score,
-                    "Game Over",
-                    javax.swing.JOptionPane.YES_NO_OPTION,
-                    javax.swing.JOptionPane.INFORMATION_MESSAGE,
-                    null,
-                    new String[]{"Retry Level", "Back to Menu"},
-                    "Retry Level");
-
-            if (choice == 0) {
-                // إعادة اللعب على نفس المستوى
-                restartLevel();
+            // الكرة سقطت تحت
+            if (lives > 1) {
+                // نفقد حياة ونرجع الكرة متعلقة
+                lives--;
+                if (soundManager != null) soundManager.playGameLost();
+                javax.swing.JOptionPane.showMessageDialog(null,
+                        "You lost a life! Lives left: " + lives);
+                // إعادة الكرة دون إعادة الطوب أو إعادة المستوى
+                resetBallAttached();
+                gameOver = false;
+                started = false;
             } else {
-                // العودة للـ Menu
-                returnToMenu();
+                // آخر حياة -> Game Over
+                lives = 0;
+                gameOver = true;
+                if (soundManager != null) soundManager.playGameLost();
+                int choice = javax.swing.JOptionPane.showOptionDialog(null,
+                        "You Lost!\nYour Score: " + score,
+                        "Game Over",
+                        javax.swing.JOptionPane.YES_NO_OPTION,
+                        javax.swing.JOptionPane.INFORMATION_MESSAGE,
+                        null,
+                        new String[]{"Retry Level", "Back to Menu"},
+                        "Retry Level");
+
+                if (choice == 0) {
+                    // إعادة المحاولات كاملة عند إعادة اللعب (اختياري)
+                    restartLevel();
+                } else {
+                    returnToMenu();
+                }
             }
         }
     }
@@ -465,11 +536,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     private void restartLevel() {
         started = false;
         gameOver = false;
-        // أعد الكرة
+        // إعادة الكرة
         resetBallAttached();
-        // أعد الطوب فقط إذا أحببت (عادة نخليها زي ما كانت)
+        // نعيد الـ bricks كما في النسخة الأصلية
         createBricksByLevel();
         score = 0;
+        // إعادة المحاولات كاملة عند restart
+        lives = maxLives;
     }
 
     private void returnToMenu() {
@@ -522,6 +595,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         if (leftActive) paddleLeft.y = initialY;
         if (rightActive) paddleRight.y = initialY;
 
+        lives = maxLives; // reset lives here
         resetBallAttached();
     }
 
@@ -631,3 +705,4 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         }
     }
 }
+
