@@ -1,5 +1,5 @@
 
-package Mygame;
+package com;
 
 import javax.swing.*;
 import java.awt.*;

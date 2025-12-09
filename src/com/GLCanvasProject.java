@@ -1,4 +1,5 @@
 package com;
+
 import com.sun.opengl.util.j2d.TextRenderer;
 import javax.media.opengl.GL;
 import javax.media.opengl.GLAutoDrawable;
@@ -504,7 +505,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
             case KeyEvent.VK_D: dKey = true; break;
             case KeyEvent.VK_W: wKey = true; break;
             case KeyEvent.VK_S: sKey = true; break;
-            case KeyEvent.VK_SPACE:
+            case KeyEvent.VK_ENTER:
                 if (!started) startBall();
                 break;
         }
