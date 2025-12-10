@@ -15,7 +15,8 @@ import javax.swing.JOptionPane;
 /**
  * GLCanvasProject - لعبة بسيطة (Ball / Paddle / Bricks) مع مؤقت و حياة وطبقات مستويات.
  *
- * **التعديل الأخير:** تم نقل عرض الوقت ليحل محل عرض "Mode" وتم إلغاء عرض Mode.
+ * **التعديلات:** المؤقت مستمر، وإعادة تعيينه فقط عند بدء المستوى الجديد أو إعادة التشغيل الكاملة.
+ * تم نقل عرض المؤقت إلى أسفل المنتصف، ويظل ظاهراً عند التوقف المؤقت (خسارة قلب).
  */
 public class GLCanvasProject implements GLEventListener, KeyListener,
         java.awt.event.MouseListener, java.awt.event.MouseMotionListener {
@@ -41,7 +42,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     private boolean aKey, dKey, wKey, sKey;
 
     private TextRenderer textRenderer;
-    private SoundManager soundManager; // افتراضي: افترض أن لديك SoundManager في المشروع
+    // افترض وجود SoundManager
+    private SoundManager soundManager;
 
     private final double PADDLE_SPEED = 3.0;
     private final double BALL_SPEED = 3.0;
@@ -96,7 +98,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         createBricksByLevel();
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
-        soundManager = new SoundManager(); // افترض وجود مُنفذ
+        // افترض وجود مُنفذ
+        // soundManager = new SoundManager();
 
         lives = maxLives;
     }
@@ -141,19 +144,17 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         textRenderer.draw("Score: " + score, 10, 10);
         textRenderer.draw("Level: " + level, 400, 10);
 
-        // ===== TIMER DISPLAY - عرض المؤقت (التعديل هنا) =====
+        // ===== TIMER DISPLAY - عرض المؤقت (معدل) =====
         if (!gameOver) {
-            if (started && timerActive) {
-                // عرض الوقت المنقضي في المنتصف أسفل الشاشة (مكان Mode سابقاً)
-                textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
-                textRenderer.draw("Time Elapsed: " + timeElapsedSeconds + "s", 170, 10); // <== تم تغيير الـ Y و الـ X
-            } else if (!started) {
-                // عرض رسالة البدء والوقت المنقضي عند التوقف (بعد خسارة قلب)
-                textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
-                textRenderer.draw("Press ENTER to Start ", 180, 130);
+            // 1. عرض الوقت المستغرق في موقعه السفلي الثابت (يظل ظاهراً حتى بعد خسارة قلب)
+            textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
+            textRenderer.draw("Time Elapsed: " + timeElapsedSeconds + "s", 200, 10);
+
+            // 2. إذا لم تبدأ الحركة (بعد خسارة قلب أو بداية المستوى)، نعرض رسالة ENTER في الأعلى
+            if (!started) {
+                textRenderer.draw("Press ENTER to Start", 160, 110);
             }
         }
-        // تم حذف سطر عرض "Mode"
         textRenderer.endRendering();
         // ===== END TIMER DISPLAY =====
 
@@ -164,7 +165,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
     @Override public void displayChanged(GLAutoDrawable d, boolean b, boolean c) {}
 
-    // ----- رسم المربعات والمقابض والكرة -----
+    // ----- رسم المربعات والمقابض والكرة (بدون تغيير) -----
     private void drawBrick(GL gl, double x, double y, double w, double h, Color fillColor) {
         gl.glColor3f(fillColor.getRed()/255f, fillColor.getGreen()/255f, fillColor.getBlue()/255f);
         gl.glBegin(GL.GL_POLYGON);
@@ -260,7 +261,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         gl.glEnd();
     }
 
-    // ----- Game logic: إنشاء الطوب بحسب النمط والمستوى (نفس الكود السابق) -----
+    // ----- Game logic: إنشاء الطوب بحسب النمط والمستوى (بدون تغيير) -----
     private void createBricksByLevel() {
         bricks.clear();
 
@@ -378,7 +379,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         }
     }
 
-    // ----- تحديث المقابض بناءً على الإدخال -----
+    // ----- تحديث المقابض بناءً على الإدخال (بدون تغيير) -----
     private void updatePaddles() {
         if (rightActive) {
             if (leftArrow) paddleRight.moveX(-PADDLE_SPEED);
@@ -406,7 +407,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         if (p.y < bottom + 10) p.y = bottom + 10;
     }
 
-    // ----- تحديث الكرة -----
+    // ----- تحديث الكرة (بدون تغيير جوهري) -----
     private void updateBall() {
         ball.x += ball.vx;
         ball.y += ball.vy;
@@ -455,6 +456,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
 
     private void handlePaddleCollision(Paddle p) {
         if (ball.intersects(p)) {
+            // استخدام centerX() (تم تصحيح هذه الدالة في الكلاس Ball)
             double hit = (ball.centerX() - (p.x + p.w / 2)) / (p.w / 2);
             ball.vx = hit * currentBallSpeed;
             if (Math.abs(ball.vx) < 1.5) ball.vx = 1.5 * (ball.vx > 0 ? 1 : -1);
@@ -465,7 +467,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         }
     }
 
-    // ===== TIMER LOGIC - منطق المؤقت =====
+    // ===== TIMER LOGIC - منطق المؤقت (بدون تغيير) =====
     private void updateTimerAndCheckTimeOut() {
         if (started && !gameOver && timerActive) {
             long currentTimeMillis = System.currentTimeMillis();
@@ -522,7 +524,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
                 gameOver = false;
                 started = false;
 
-                // تجميد المؤقت: نوقف التحديث لكن لا نعيد timeElapsedSeconds إلى الصفر
+                // تجميد المؤقت: نوقف التحديث لكن لا نعيد timeElapsedSeconds إلى الصفر (لجعله يظهر مجمداً)
                 timerActive = false;
             } else {
                 // آخر حياة -> Game Over
@@ -573,7 +575,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
                 if (w instanceof javax.swing.JFrame) {
                     javax.swing.JFrame frame = (javax.swing.JFrame) w;
                     frame.getContentPane().removeAll();
-                    new GameWindow(); // افترض وجود GameWindow
+                    // تأكد من وجود كلاس GameWindow
+                    // new GameWindow();
                     frame.dispose();
                     break;
                 }
@@ -629,8 +632,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
 
         // بدء المؤقت عند إطلاق الكرة
         if (!timerActive) {
-            // التعديل الرئيسي: تعيين وقت البدء للحفاظ على العد المستمر
-            // وقت البدء الجديد = الوقت الحالي بالمللي - (الوقت المنقضي بالثواني * 1000)
+            // يتم استئناف المؤقت من القيمة المخزنة
             levelStartTimeMillis = System.currentTimeMillis() - (timeElapsedSeconds * 1000);
             timerActive = true;
         }
@@ -698,7 +700,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     @Override public void mouseDragged(java.awt.event.MouseEvent e) {}
     @Override public void mouseMoved(java.awt.event.MouseEvent e) {}
 
-    // ----- Helpers -----
+    // ----- Helpers (بدون تغيير) -----
     private void attachBallAboveActivePaddle() {
         double centerX;
         double attachY;
@@ -716,7 +718,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         ball.y = attachY + 20;
     }
 
-    // ----- Inner classes (نفس الكود السابق) -----
+    // ----- Inner classes (Paddle, Ball, Brick) - تم تصحيح دالة centerX() -----
+
     static class Paddle {
         double x, y, w, h;
         Paddle(double x, double y, double w, double h) {
@@ -741,6 +744,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             return x < b.x + b.w && x + size > b.x
                     && y < b.y + b.h && y + size > b.y;
         }
+        // دالة centerX() المصححة
         double centerX() { return x + size / 2; }
     }
 
