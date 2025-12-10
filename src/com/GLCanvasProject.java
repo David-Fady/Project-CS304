@@ -1,4 +1,4 @@
-package com;
+ package com;
 
 import com.sun.opengl.util.j2d.TextRenderer;
 import javax.media.opengl.GL;
@@ -11,6 +11,9 @@ import java.awt.event.KeyListener;
 import java.util.List;
 import java.util.Iterator;
 import javax.swing.JOptionPane;
+import com.sun.opengl.util.texture.Texture;
+import com.sun.opengl.util.texture.TextureIO;
+import java.net.URL;
 
 /**
  * GLCanvasProject - لعبة بسيطة (Ball / Paddle / Bricks) مع مؤقت و حياة وطبقات مستويات.
@@ -42,7 +45,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     private boolean aKey, dKey, wKey, sKey;
 
     private TextRenderer textRenderer;
-    // افترض وجود SoundManager
+    // SoundManager instance
     private SoundManager soundManager;
 
     private final double PADDLE_SPEED = 3.0;
@@ -68,7 +71,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     private boolean timerActive = false;             // هل المؤقت يعمل؟
     private long timeToCompleteLevel = 0;            // الوقت المستغرق لإنهاء المستوى (بالثواني)
 
+    // ===== BACKGROUND TEXTURE - نسيج الخلفية =====
+    private Texture backgroundTexture;
+    private boolean backgroundLoaded = false;
+
     public GLCanvasProject() {
+        // إنشاء SoundManager
+        soundManager = new SoundManager();
         // الافتراضي: players = 1، يمكن استدعاء setPlayers قبل init
     }
 
@@ -80,6 +89,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         gl.glMatrixMode(GL.GL_PROJECTION);
         gl.glLoadIdentity();
         gl.glOrtho(left, right, bottom, top, -1, 1);
+
+        // تفعيل مزج الألوان للخلفية الشفافة
+        gl.glEnable(GL.GL_BLEND);
+        gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+        // تحميل نسيج الخلفية
+        loadBackgroundTexture(gl);
 
         double paddleW = 90, paddleH = 12;
         double initialY = bottom + 40;
@@ -98,16 +114,70 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         createBricksByLevel();
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
-        // افترض وجود مُنفذ
-         soundManager = new SoundManager();
 
         lives = maxLives;
+
+        // إعادة تعيين جميع متغيرات الحركة
+        resetInputStates();
+    }
+
+    // دالة لإعادة تعيين جميع متغيرات الإدخال
+    private void resetInputStates() {
+        leftArrow = false;
+        rightArrow = false;
+        upArrow = false;
+        downArrow = false;
+        aKey = false;
+        dKey = false;
+        wKey = false;
+        sKey = false;
+    }
+
+    // دالة لتحميل نسيج الخلفية
+    private void loadBackgroundTexture(GL gl) {
+        try {
+            // جرب المسارات المختلفة للصورة
+            String[] possiblePaths = {
+                    "/com/Image/game_background.jpg",
+                    "/com/Image/game_background.png",
+                    "/com/Image/background.jpg",
+                    "/com/Image/background.png",
+                    "game_background.jpg",
+                    "game_background.png"
+            };
+
+            for (String path : possiblePaths) {
+                try {
+                    URL textureUrl = getClass().getResource(path);
+                    if (textureUrl != null) {
+                        backgroundTexture = TextureIO.newTexture(textureUrl, true, null);
+                        backgroundLoaded = true;
+                        System.out.println("Background texture loaded from: " + path);
+                        break;
+                    }
+                } catch (Exception e) {
+                    continue;
+                }
+            }
+
+            if (!backgroundLoaded) {
+                System.err.println("Could not load background texture. Using solid color.");
+            }
+        } catch (Exception e) {
+            System.err.println("Error loading background texture: " + e.getMessage());
+            backgroundLoaded = false;
+        }
     }
 
     @Override
     public void display(GLAutoDrawable glAutoDrawable) {
         GL gl = glAutoDrawable.getGL();
+
+        // مسح الشاشة بلون أساسي (في حالة عدم وجود خلفية)
         gl.glClear(GL.GL_COLOR_BUFFER_BIT);
+
+        // رسم الخلفية أولاً
+        drawBackground(gl);
 
         // تحديث حركة المقابض حسب الإدخال
         updatePaddles();
@@ -144,6 +214,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         textRenderer.draw("Score: " + score, 10, 10);
         textRenderer.draw("Level: " + level, 400, 10);
 
+        // عرض حالة الصوت
+     //   textRenderer.draw("Sound: " + (soundManager.isMuted() ? "MUTED" : "ON"), 10, 280);
+
         // ===== TIMER DISPLAY - عرض المؤقت (معدل) =====
         if (!gameOver) {
             // 1. عرض الوقت المستغرق في موقعه السفلي الثابت (يظل ظاهراً حتى بعد خسارة قلب)
@@ -162,12 +235,58 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         drawLives(gl);
     }
 
+    // دالة لرسم الخلفية
+    private void drawBackground(GL gl) {
+        if (backgroundLoaded && backgroundTexture != null) {
+            // تفعيل النسيج
+            backgroundTexture.enable();
+            backgroundTexture.bind();
+
+            // تفعيل مزج الألوان للخلفية الشفافة
+            gl.glEnable(GL.GL_BLEND);
+            gl.glBlendFunc(GL.GL_SRC_ALPHA, GL.GL_ONE_MINUS_SRC_ALPHA);
+
+            // تعيين لون أبيض شفاف جزئياً للخلفية
+            gl.glColor4f(1.0f, 1.0f, 1.0f, 0.7f); // 0.7 = شفافية 70%
+
+            // رسم الخلفية لتغطية كامل الشاشة
+            gl.glBegin(GL.GL_QUADS);
+            gl.glTexCoord2f(0.0f, 0.0f);
+            gl.glVertex2d(left, bottom);
+            gl.glTexCoord2f(1.0f, 0.0f);
+            gl.glVertex2d(right, bottom);
+            gl.glTexCoord2f(1.0f, 1.0f);
+            gl.glVertex2d(right, top);
+            gl.glTexCoord2f(0.0f, 1.0f);
+            gl.glVertex2d(left, top);
+            gl.glEnd();
+
+            // تعطيل النسيج بعد الرسم
+            backgroundTexture.disable();
+        } else {
+            // إذا لم توجد خلفية، استخدم لون خلفية بسيط
+            gl.glColor3f(0.3f, 0.4f, 0.5f); // لون سماوي غامق
+            gl.glBegin(GL.GL_QUADS);
+            gl.glVertex2d(left, bottom);
+            gl.glVertex2d(right, bottom);
+            gl.glVertex2d(right, top);
+            gl.glVertex2d(left, top);
+            gl.glEnd();
+        }
+
+        // إعادة تعيين اللون للأشياء الأخرى
+        gl.glColor3f(1.0f, 1.0f, 1.0f);
+    }
+
     @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
-    @Override public void displayChanged(GLAutoDrawable d, boolean b, boolean c) {}
+
+    @Override
+    public void displayChanged(GLAutoDrawable d, boolean b, boolean c) {}
 
     // ----- رسم المربعات والمقابض والكرة (بدون تغيير) -----
     private void drawBrick(GL gl, double x, double y, double w, double h, Color fillColor) {
-        gl.glColor3f(fillColor.getRed()/255f, fillColor.getGreen()/255f, fillColor.getBlue()/255f);
+        // استخدام لون مع شفافية لجعل الطوب شفافاً جزئياً
+        gl.glColor4f(fillColor.getRed()/255f, fillColor.getGreen()/255f, fillColor.getBlue()/255f, 0.9f);
         gl.glBegin(GL.GL_POLYGON);
         gl.glVertex2d(x, y);
         gl.glVertex2d(x + w, y);
@@ -186,6 +305,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     }
 
     private void drawFancyPaddle(GL gl, double x1, double y1, double x2, double y2) {
+        // رسم ظل المضرب
         double shadowOffset = -4;
         gl.glColor4f(0f, 0f, 0f, 0.35f);
         gl.glBegin(GL.GL_POLYGON);
@@ -195,16 +315,18 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         gl.glVertex2d(x1 + 3, y2 + shadowOffset);
         gl.glEnd();
 
+        // رسم المضرب نفسه
         gl.glBegin(GL.GL_POLYGON);
-        gl.glColor3f(0.0f, 0.3f, 0.8f);
+        gl.glColor4f(0.0f, 0.3f, 0.8f, 0.9f);
         gl.glVertex2d(x1, y2);
         gl.glVertex2d(x2, y2);
 
-        gl.glColor3f(0.3f, 0.6f, 1.0f);
+        gl.glColor4f(0.3f, 0.6f, 1.0f, 0.9f);
         gl.glVertex2d(x2, y1);
         gl.glVertex2d(x1, y1);
         gl.glEnd();
 
+        // إطار المضرب
         gl.glLineWidth(4f);
         gl.glColor3f(0f, 0f, 0f);
         gl.glBegin(GL.GL_LINE_LOOP);
@@ -415,17 +537,17 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         if (ball.x < left) {
             ball.x = left;
             ball.vx = Math.abs(ball.vx);
-            if (soundManager != null) soundManager.playBallBounce();
+            soundManager.playBallBounce();
         }
         if (ball.x + ball.size > right) {
             ball.x = right - ball.size;
             ball.vx = -Math.abs(ball.vx);
-            if (soundManager != null) soundManager.playBallBounce();
+            soundManager.playBallBounce();
         }
         if (ball.y + ball.size > top) {
             ball.y = top - ball.size;
             ball.vy = -Math.abs(ball.vy);
-            if (soundManager != null) soundManager.playBallBounce();
+            soundManager.playBallBounce();
         }
 
         // تصادم مع المقابض (فقط إذا كانت مفعّلة)
@@ -441,7 +563,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             if (ball.intersects(b)) {
                 it.remove();
                 score++;
-                if (soundManager != null) soundManager.playBrickExplode();
+                soundManager.playBrickExplode();
                 ball.vy = -ball.vy;
                 break;
             }
@@ -461,7 +583,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             ball.vx = hit * currentBallSpeed;
             if (Math.abs(ball.vx) < 1.5) ball.vx = 1.5 * (ball.vx > 0 ? 1 : -1);
 
-            if (soundManager != null) soundManager.playBallBounce();
+            soundManager.playBallBounce();
             ball.vy = Math.abs(ball.vy) + 0.2;
             ball.y = p.y + p.h;
         }
@@ -483,7 +605,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     private void checkWin() {
         if (bricks.isEmpty() && !levelCompleted) {
             levelCompleted = true;
-            if (soundManager != null) soundManager.playLevelWin();
+            soundManager.playLevelWin();
 
             // حفظ الوقت المستغرق لإكمال المستوى
             timeToCompleteLevel = timeElapsedSeconds;
@@ -516,7 +638,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             // الكرة سقطت للأسفل
             if (lives > 1) {
                 lives--;
-                if (soundManager != null) soundManager.playGameLost();
+                soundManager.playGameLost();
                 JOptionPane.showMessageDialog(null, "You lost a life! Lives left: " + lives);
 
                 // إعادة الكرة متعلقة
@@ -526,11 +648,14 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
 
                 // تجميد المؤقت: نوقف التحديث لكن لا نعيد timeElapsedSeconds إلى الصفر (لجعله يظهر مجمداً)
                 timerActive = false;
+
+                // إعادة تعيين متغيرات الحركة عند خسارة حياة
+                resetInputStates();
             } else {
                 // آخر حياة -> Game Over
                 lives = 0;
                 gameOver = true;
-                if (soundManager != null) soundManager.playGameLost();
+                soundManager.playGameLost();
 
                 // عرض الوقت المستغرق حتى الخسارة
                 int choice = JOptionPane.showOptionDialog(null,
@@ -564,6 +689,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         timerActive = false;
         levelStartTimeMillis = 0;
         timeElapsedSeconds = 0;
+
+        // إعادة تعيين متغيرات الحركة عند إعادة تشغيل المستوى
+        resetInputStates();
     }
 
     private void returnToMenu() {
@@ -623,6 +751,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         levelStartTimeMillis = 0;
         timeElapsedSeconds = 0;
         timeToCompleteLevel = 0;
+
+        // إعادة تعيين متغيرات الحركة عند إعادة تعيين اللعبة بالكامل
+        resetInputStates();
     }
 
     private void startBall() {
@@ -636,6 +767,23 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             levelStartTimeMillis = System.currentTimeMillis() - (timeElapsedSeconds * 1000);
             timerActive = true;
         }
+    }
+
+    // دوال جديدة للتحكم في الصوت
+    public void toggleSoundMute() {
+        if (soundManager != null) {
+            soundManager.toggleMute();
+        }
+    }
+
+    public void setSoundMuted(boolean muted) {
+        if (soundManager != null) {
+            soundManager.setMuted(muted);
+        }
+    }
+
+    public boolean isSoundMuted() {
+        return soundManager != null && soundManager.isMuted();
     }
 
     public void setLevel(int level) {
@@ -671,6 +819,10 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             case KeyEvent.VK_S: sKey = true; break;
             case KeyEvent.VK_ENTER:
                 if (!started && !gameOver) startBall();
+                break;
+            case KeyEvent.VK_M:
+                // اختصار M لكتم الصوت مباشرة
+                toggleSoundMute();
                 break;
         }
     }
