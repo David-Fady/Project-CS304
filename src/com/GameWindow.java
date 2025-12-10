@@ -1,4 +1,4 @@
-package com;
+ package com;
 
 import com.sun.opengl.util.FPSAnimator;
 import javax.media.opengl.GLJPanel;
@@ -19,6 +19,9 @@ public class GameWindow extends JFrame {
     private GLJPanel GLJPanel;
     private GLCanvasProject lo;
     private FPSAnimator animator;
+
+    // متغير لتخزين حالة كتم الصوت
+    private static boolean isMuted = false;
 
     public GameWindow() {
         setTitle("Brick Breaker");
@@ -113,6 +116,9 @@ public class GameWindow extends JFrame {
         lo.setPlayers(players);
         lo.setLevel(level);
 
+        // تمرير حالة كتم الصوت إلى GLCanvasProject
+        lo.setSoundMuted(isMuted);
+
         GLJPanel = new GLJPanel();
         GLJPanel.addGLEventListener(lo);
         GLJPanel.addKeyListener(lo);
@@ -147,17 +153,34 @@ public class GameWindow extends JFrame {
 
         pauseButton.addActionListener(e -> {
             try { if (animator != null && animator.isAnimating()) animator.stop(); } catch (Exception ignored) {}
-            String[] options = {"Resume", "Back to Menu"};
+
+            String[] options = {"Resume", "Mute/Unmute", "Back to Menu"};
             int choice = JOptionPane.showOptionDialog(GameWindow.this,
-                    "Game Paused",
+                    "Game Paused\n" +
+                            (isMuted ? "🔇 Sound is MUTED" : "🔊 Sound is ON"),
                     "Pause",
                     JOptionPane.DEFAULT_OPTION,
                     JOptionPane.PLAIN_MESSAGE,
                     null,
                     options,
                     options[0]);
-            if (choice == 0) try { if (animator != null && !animator.isAnimating()) animator.start(); } catch (Exception ignored) {}
-            else if (choice == 1) { cleanupGL(); card.show(container, "menu"); }
+
+            if (choice == 0) {
+                // Resume
+                try { if (animator != null && !animator.isAnimating()) animator.start(); } catch (Exception ignored) {}
+            } else if (choice == 1) {
+                // Mute/Unmute
+                toggleMute();
+                if (lo != null) {
+                    lo.toggleSoundMute();
+                }
+                // إعادة فتح نافذة الإيقاف مع الحالة المحدثة
+                pauseButton.doClick();
+            } else if (choice == 2) {
+                // Back to Menu
+                cleanupGL();
+                card.show(container, "menu");
+            }
         });
 
         layered.setPreferredSize(new Dimension(800, 520));
@@ -167,6 +190,11 @@ public class GameWindow extends JFrame {
         animator = new FPSAnimator(GLJPanel, 60);
         animator.start();
         GLJPanel.requestFocusInWindow();
+    }
+
+    private void toggleMute() {
+        isMuted = !isMuted;
+        System.out.println("Global mute state changed to: " + isMuted);
     }
 
     private void cleanupGL() {
