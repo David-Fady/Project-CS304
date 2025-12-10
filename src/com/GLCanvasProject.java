@@ -10,12 +10,17 @@ import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.List;
 
-public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.event.MouseListener, java.awt.event.MouseMotionListener {
+/**
+ * GLCanvasProject - لعبة بسيطة (Ball / Paddle / Bricks) مع مؤقت و حياة وطبقات مستويات.
+ * تم تنظيف الكود وإضافة تعليقات عربية لسهولة القراءة.
+ */
+public class GLCanvasProject implements GLEventListener, KeyListener,
+        java.awt.event.MouseListener, java.awt.event.MouseMotionListener {
 
-    // viewport
+    // ----- Viewport -----
     private double left = -225, right = 225, bottom = -150, top = 150;
 
-    // game objects
+    // ----- Game objects -----
     private Paddle paddleLeft, paddleRight;
     private Ball ball;
     private boolean started = false;
@@ -28,40 +33,43 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     private int patternIndex = 1;
     private Random rand = new Random();
 
-    // input states
+    // ----- Input states -----
     private boolean leftArrow, rightArrow, upArrow, downArrow;
     private boolean aKey, dKey, wKey, sKey;
 
     private TextRenderer textRenderer;
-    private SoundManager soundManager;
+    private SoundManager soundManager; // افتراضي: افترض أن لديك SoundManager في المشروع
 
     private final double PADDLE_SPEED = 3.0;
     private final double BALL_SPEED = 3.0;
 
-    // mode: 1 => single player, 2 => two players
+    // mode: 1 => single player, 2 => two players (حفظ فقط للمنطق، نتحكم عبر setPlayers)
     private int players = 1;
 
     private boolean levelCompleted = false;
     private boolean gameOver = false;
 
-
     // flags for paddles (active = visible & participating)
     private boolean leftActive = false;
-    private boolean rightActive = true; // default single-player uses right paddle
+    private boolean rightActive = true; // الافتراضي: لاعب واحد على اليمين
 
     // lives
     private int lives = 3;
     private final int maxLives = 3;
 
-    public GLCanvasProject() {
-        // default players = 1; can call setPlayers before canvas init
-    }
+    // ===== TIMER VARIABLES - متغييرات المؤقت =====
+    private long levelStartTimeMillis = 0;           // وقت بداية المستوى بالمللي ثانية
+    private final long TIME_LIMIT_SECONDS = 30;      // الحد الأقصى للوقت بالمستوى (ثواني)
+    private long timeElapsedSeconds = 0;             // الوقت المنقضي الآن
+    private boolean timerActive = false;             // هل المؤقت يعمل؟
 
+    public GLCanvasProject() {
+        // الافتراضي: players = 1، يمكن استدعاء setPlayers قبل init
+    }
 
     @Override
     public void init(GLAutoDrawable glAutoDrawable) {
         GL gl = glAutoDrawable.getGL();
-
         gl.glClearColor(0.65f, 0.55f, 0.45f, 1.0f);
 
         gl.glMatrixMode(GL.GL_PROJECTION);
@@ -71,14 +79,12 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         double paddleW = 90, paddleH = 12;
         double initialY = bottom + 40;
 
-        // position paddles
-        // Right paddle always created (may be active/inactive)
+        // Position paddles
         paddleRight = new Paddle(20, initialY, paddleW, paddleH);
-
         if (leftActive) {
             paddleLeft = new Paddle(-110, initialY, paddleW, paddleH);
         } else {
-            // create left paddle off-screen to avoid accidental collisions/drawing
+            // وضع اليسار بعيدًا خارج الشاشة لتجنب التصادم / العرض إذا لم يكن مفعلًا
             paddleLeft = new Paddle(left - 500, initialY, paddleW, paddleH);
         }
 
@@ -87,9 +93,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         createBricksByLevel();
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
-        soundManager = new SoundManager();
+        soundManager = new SoundManager(); // افترض وجود مُنفذ
 
-        // ensure lives are initialized
         lives = maxLives;
     }
 
@@ -98,63 +103,68 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         GL gl = glAutoDrawable.getGL();
         gl.glClear(GL.GL_COLOR_BUFFER_BIT);
 
+        // تحديث حركة المقابض حسب الإدخال
         updatePaddles();
 
+        // إذا لم يبدأ اللعب، اعلّق الكرة فوق المضرب المناسب
         if (!started) {
-            // attach ball to the correct paddle depending on flags
-            double centerX;
-            double attachY;
-            if (rightActive && !leftActive) {
-                // single player -> attach above right paddle
-                centerX = paddleRight.x + paddleRight.w / 2.0;
-                attachY = paddleRight.y;
-            } else if (leftActive && !rightActive) {
-                // unlikely, but handle: attach above left
-                centerX = paddleLeft.x + paddleLeft.w / 2.0;
-                attachY = paddleLeft.y;
-            } else {
-                // both active: attach center between paddles
-                centerX = (paddleLeft.x + paddleLeft.w / 2 + paddleRight.x + paddleRight.w / 2) / 2.0;
-                attachY = Math.min(paddleLeft.y, paddleRight.y);
-            }
-            ball.x = centerX - ball.size / 2;
-            ball.y = attachY + 20;
+            attachBallAboveActivePaddle();
         } else {
             updateBall();
         }
 
+        // لون الطوب بحسب المستوى
         Color levelColor = getColorForLevel(level);
 
+        // رسم الطوب
         for (Brick b : bricks) {
             drawBrick(gl, b.x, b.y, b.w, b.h, levelColor);
         }
 
-        // draw left paddle only if active
+        // رسم المقابض فقط إذا كانت مفعلة
         if (leftActive) {
             drawFancyPaddle(gl, paddleLeft.x, paddleLeft.y, paddleLeft.x + paddleLeft.w, paddleLeft.y + paddleLeft.h);
         }
-        // draw right paddle if active
         if (rightActive) {
             drawFancyPaddle(gl, paddleRight.x, paddleRight.y, paddleRight.x + paddleRight.w, paddleRight.y + paddleRight.h);
         }
 
-        drawCircle(gl, ball.x + ball.size/2, ball.y + ball.size/2, ball.size/2, 1f, 0.9f, 0.0f);
+        // رسم الكرة
+        drawCircle(gl, ball.x + ball.size / 2, ball.y + ball.size / 2, ball.size / 2, 1f, 0.9f, 0.0f);
 
+        // رسم النصوص (score, level, mode, timer)
         textRenderer.beginRendering(500, 300);
         textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
         textRenderer.draw("Score: " + score, 10, 10);
         textRenderer.draw("Level: " + level, 400, 10);
         String modeLabel = (leftActive && rightActive) ? "Two Players" : (rightActive ? "One Player" : "One Player (Left?)");
         textRenderer.draw("Mode: " + modeLabel, 200, 10);
-        textRenderer.endRendering();
 
-        // draw lives as hearts in top-right
+        // ===== TIMER DISPLAY - عرض المؤقت =====
+        if (!gameOver) {
+            long timeLeft = TIME_LIMIT_SECONDS - timeElapsedSeconds;
+            if (started && timerActive) {
+                // احمر اذا تبقى 10 ثواني او اقل
+                textRenderer.setColor(timeLeft <= 10 ? 0.9f : 1.0f,
+                        timeLeft <= 10 ? 0.0f : 1.0f,
+                        0f, 1.0f);
+                textRenderer.draw("Time Left: " + Math.max(0, timeLeft), 200, 270);
+            } else if (!started && TIME_LIMIT_SECONDS > 0) {
+                textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
+                textRenderer.draw("Press ENTER to Start. Time Limit: " + TIME_LIMIT_SECONDS + "s", 100, 270);
+            }
+        }
+        textRenderer.endRendering();
+        // ===== END TIMER DISPLAY =====
+
+        // رسم القلوب (الحياة)
         drawLives(gl);
     }
 
     @Override public void reshape(GLAutoDrawable d, int x, int y, int w, int h) {}
     @Override public void displayChanged(GLAutoDrawable d, boolean b, boolean c) {}
 
+    // ----- رسم المربعات والمقابض والكرة -----
     private void drawBrick(GL gl, double x, double y, double w, double h, Color fillColor) {
         gl.glColor3f(fillColor.getRed()/255f, fillColor.getGreen()/255f, fillColor.getBlue()/255f);
         gl.glBegin(GL.GL_POLYGON);
@@ -176,7 +186,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
 
     private void drawFancyPaddle(GL gl, double x1, double y1, double x2, double y2) {
         double shadowOffset = -4;
-
         gl.glColor4f(0f, 0f, 0f, 0.35f);
         gl.glBegin(GL.GL_POLYGON);
         gl.glVertex2d(x1 + 3, y1 + shadowOffset);
@@ -205,68 +214,53 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         gl.glEnd();
     }
 
-    private void drawCircle(GL gl, double cx, double cy, double radius,
-                            float r, float g, float b) {
+    private void drawCircle(GL gl, double cx, double cy, double radius, float r, float g, float b) {
         gl.glColor3f(r, g, b);
         gl.glBegin(GL.GL_POLYGON);
         int steps = 32;
         for (int i = 0; i < steps; i++) {
             double ang = 2 * Math.PI * i / steps;
-            gl.glVertex2d(Math.cos(ang)*radius + cx, Math.sin(ang)*radius + cy);
+            gl.glVertex2d(Math.cos(ang) * radius + cx, Math.sin(ang) * radius + cy);
         }
         gl.glEnd();
     }
 
-    // ---------- hearts drawing ----------
+    // ----- Hearts (lives) -----
     private void drawLives(GL gl) {
-        double size = 9; // visual size of each heart (reduced)
+        double size = 9; // حجم القلب
         double margin = 12;
-
         for (int i = 0; i < maxLives; i++) {
-            // position hearts from top-right towards left
-            double xCenter = right - margin - (i * (size + 6)) - size/2.0;
-            double yCenter = top - margin - size/2.0;
-
+            double xCenter = right - margin - (i * (size + 6)) - size / 2.0;
+            double yCenter = top - margin - size / 2.0;
             boolean filled = (i < lives);
             drawHeart(gl, xCenter, yCenter, size, filled);
         }
     }
 
-    /**
-     * Draws a heart shape centered at (cx,cy).
-     * size roughly controls overall width/height.
-     * If filled==true -> filled red polygon, else -> gray outline.
-     */
     private void drawHeart(GL gl, double cx, double cy, double size, boolean filled) {
-        int segments = 100; // smoothness
-        // use parametric heart curve scaled to 'size'
-        double scale = size / 20.0; // tuned factor
-
+        int segments = 100;
+        double scale = size / 20.0;
         if (filled) {
-            gl.glColor3f(0.85f, 0.05f, 0.15f); // red
+            gl.glColor3f(0.85f, 0.05f, 0.15f);
             gl.glBegin(GL.GL_POLYGON);
         } else {
-            gl.glColor3f(0.6f, 0.6f, 0.6f); // gray outline
+            gl.glColor3f(0.6f, 0.6f, 0.6f);
             gl.glLineWidth(2f);
             gl.glBegin(GL.GL_LINE_LOOP);
         }
 
         for (int i = 0; i < segments; i++) {
             double t = (2 * Math.PI * i) / segments;
-            // classic heart parametric form
             double x = 16 * Math.pow(Math.sin(t), 3);
             double y = 13 * Math.cos(t) - 5 * Math.cos(2 * t) - 2 * Math.cos(3 * t) - Math.cos(4 * t);
-
             double px = x * scale + cx;
             double py = y * scale + cy;
-
             gl.glVertex2d(px, py);
         }
-
         gl.glEnd();
     }
 
-    // ---------- game logic ----------
+    // ----- Game logic: إنشاء الطوب بحسب النمط والمستوى -----
     private void createBricksByLevel() {
         bricks.clear();
 
@@ -280,8 +274,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         int p = patternIndex;
 
         switch (p) {
-            case 1:
-            {
+            case 1: {
                 int rows = level + 1;
                 double startY = 40;
                 for (int r = 0; r < rows; r++) {
@@ -291,15 +284,14 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                         bricks.add(new Brick(x, y, brickW, brickH));
                     }
                 }
-            }
-            break;
-            case 2:
-            {
+            } break;
+
+            case 2: {
                 int rows = Math.min(level + 2, 8);
                 double centerX = (left + right) / 2.0;
                 double startY = 60;
                 for (int r = 0; r < rows; r++) {
-                    int bricksInRow = cols - r*2;
+                    int bricksInRow = cols - r * 2;
                     if (bricksInRow <= 0) break;
                     double rowWidth = bricksInRow * brickW + (bricksInRow - 1) * 6;
                     double x0 = centerX - rowWidth / 2.0;
@@ -309,10 +301,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                         bricks.add(new Brick(x, y, brickW, brickH));
                     }
                 }
-            }
-            break;
-            case 3:
-            {
+            } break;
+
+            case 3: {
                 int rows = level + 2;
                 double startY = 50;
                 double centerX = (left + right) / 2.0;
@@ -320,14 +311,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                     double y = startY + r * (brickH + 5);
                     int span = r;
                     for (int i = -span; i <= span; i++) {
-                        double xLeft = centerX + i * (brickW + 4) - (brickW/2.0) - (span*(brickW+4))/2.0;
+                        double xLeft = centerX + i * (brickW + 4) - (brickW / 2.0) - (span * (brickW + 4)) / 2.0;
                         bricks.add(new Brick(xLeft, y, brickW, brickH));
                     }
                 }
-            }
-            break;
-            case 4:
-            {
+            } break;
+
+            case 4: {
                 int rows = level + 1;
                 double startY = 45;
                 for (int c = 0; c < cols; c++) {
@@ -338,27 +328,25 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                         bricks.add(new Brick(x, y, brickW, brickH));
                     }
                 }
-            }
-            break;
-            case 5:
-            {
+            } break;
+
+            case 5: {
                 double centerX = (left + right) / 2.0;
-                double[] relX = { -5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5 };
+                double[] relX = {-5, -4, -3, -2, -1, 0, 1, 2, 3, 4, 5};
                 int baseRows = level + 1;
                 double startY = 60;
                 for (int r = 0; r < baseRows; r++) {
                     double y = startY + r * (brickH + 5);
                     for (int i = 0; i < relX.length; i++) {
                         if (Math.abs(relX[i]) + r > 6) continue;
-                        double x = centerX + relX[i] * (brickW + 2) - brickW/2.0;
+                        double x = centerX + relX[i] * (brickW + 2) - brickW / 2.0;
                         bricks.add(new Brick(x, y, brickW, brickH));
                     }
                 }
-            }
-            break;
+            } break;
+
             case 6:
-            default:
-            {
+            default: {
                 int rows = level + 2;
                 double startY = 40;
                 for (int r = 0; r < rows; r++) {
@@ -369,8 +357,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                         bricks.add(new Brick(x, y, brickW, brickH));
                     }
                 }
-            }
-            break;
+            } break;
         }
     }
 
@@ -391,8 +378,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         }
     }
 
+    // ----- تحديث المقابض بناءً على الإدخال -----
     private void updatePaddles() {
-        // Right paddle controls (arrows) if rightActive
         if (rightActive) {
             if (leftArrow) paddleRight.moveX(-PADDLE_SPEED);
             if (rightArrow) paddleRight.moveX(PADDLE_SPEED);
@@ -400,7 +387,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
             if (downArrow) paddleRight.moveY(-PADDLE_SPEED);
         }
 
-        // Left paddle controls (WASD) if leftActive
         if (leftActive) {
             if (aKey) paddleLeft.moveX(-PADDLE_SPEED);
             if (dKey) paddleLeft.moveX(PADDLE_SPEED);
@@ -408,7 +394,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
             if (sKey) paddleLeft.moveY(-PADDLE_SPEED);
         }
 
-        // clamp only active paddles
         if (leftActive) clampPaddle(paddleLeft);
         if (rightActive) clampPaddle(paddleRight);
     }
@@ -421,32 +406,34 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         if (p.y < bottom + 10) p.y = bottom + 10;
     }
 
+    // ----- تحديث الكرة -----
     private void updateBall() {
         ball.x += ball.vx;
         ball.y += ball.vy;
 
-        if (ball.x < left)  {
+        if (ball.x < left) {
             ball.x = left;
             ball.vx = Math.abs(ball.vx);
             if (soundManager != null) soundManager.playBallBounce();
         }
-        if (ball.x + ball.size > right)  {
+        if (ball.x + ball.size > right) {
             ball.x = right - ball.size;
             ball.vx = -Math.abs(ball.vx);
             if (soundManager != null) soundManager.playBallBounce();
         }
-        if (ball.y + ball.size > top){
+        if (ball.y + ball.size > top) {
             ball.y = top - ball.size;
             ball.vy = -Math.abs(ball.vy);
             if (soundManager != null) soundManager.playBallBounce();
         }
 
-        // check collisions only for active paddles
+        // تصادم مع المقابض (فقط إذا كانت مفعّلة)
         if (leftActive) handlePaddleCollision(paddleLeft);
         if (rightActive) handlePaddleCollision(paddleRight);
 
         if (levelCompleted) return;
 
+        // فحص تصادم مع الطوب
         Iterator<Brick> it = bricks.iterator();
         while (it.hasNext()) {
             Brick b = it.next();
@@ -461,13 +448,15 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
 
         checkWin();
         checkLost();
+
+        // استدعاء المؤقت
+        updateTimerAndCheckTimeOut();
     }
 
     private void handlePaddleCollision(Paddle p) {
         if (ball.intersects(p)) {
             double hit = (ball.centerX() - (p.x + p.w / 2)) / (p.w / 2);
             ball.vx = hit * currentBallSpeed;
-
             if (Math.abs(ball.vx) < 1.5) ball.vx = 1.5 * (ball.vx > 0 ? 1 : -1);
 
             if (soundManager != null) soundManager.playBallBounce();
@@ -476,13 +465,50 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         }
     }
 
+    // ===== TIMER LOGIC - منطق المؤقت =====
+    private void updateTimerAndCheckTimeOut() {
+        if (started && !gameOver && timerActive) {
+            long currentTimeMillis = System.currentTimeMillis();
+            timeElapsedSeconds = (currentTimeMillis - levelStartTimeMillis) / 1000;
+
+            if (timeElapsedSeconds >= TIME_LIMIT_SECONDS) {
+                // انتهى الوقت -> خسارة فورية
+                timerActive = false;
+                gameOver = true;
+                if (soundManager != null) soundManager.playGameLost();
+
+                int choice = javax.swing.JOptionPane.showOptionDialog(null,
+                        "Time's Up! You Lost!\nYour Score: " + score + "\nTime Limit: " + TIME_LIMIT_SECONDS + " seconds.",
+                        "Game Over (Time Limit)",
+                        javax.swing.JOptionPane.YES_NO_OPTION,
+                        javax.swing.JOptionPane.INFORMATION_MESSAGE,
+                        null,
+                        new String[]{"Retry Level", "Back to Menu"},
+                        "Retry Level");
+
+                if (choice == 0) {
+                    restartLevel();
+                } else {
+                    returnToMenu();
+                }
+            }
+        } else if (!started && timerActive) {
+
+            timerActive = false;
+        }
+    }
+
+
     private void checkWin() {
         if (bricks.isEmpty() && !levelCompleted) {
             levelCompleted = true;
             if (soundManager != null) soundManager.playLevelWin();
 
-            javax.swing.JOptionPane.showMessageDialog(null,
-                    "Level " + level + " Completed!");
+
+            timerActive = false;
+            levelStartTimeMillis = 0;
+
+            javax.swing.JOptionPane.showMessageDialog(null, "Level " + level + " Completed!");
 
             level++;
             currentBallSpeed += 0.5;
@@ -492,23 +518,27 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
             createBricksByLevel();
             resetBallAttached();
 
-            levelCompleted = false; // جاهز للمستوى الجديد
+            levelCompleted = false;
         }
     }
 
     private void checkLost() {
         if (ball.y + ball.size < bottom && !gameOver) {
-            // الكرة سقطت تحت
+            // الكرة سقطت للأسفل
             if (lives > 1) {
-                // نفقد حياة ونرجع الكرة متعلقة
                 lives--;
                 if (soundManager != null) soundManager.playGameLost();
-                javax.swing.JOptionPane.showMessageDialog(null,
-                        "You lost a life! Lives left: " + lives);
-                // إعادة الكرة دون إعادة الطوب أو إعادة المستوى
+                javax.swing.JOptionPane.showMessageDialog(null, "You lost a life! Lives left: " + lives);
+
+                // إعادة الكرة متعلقة دون إعادة الطوب أو المستوى
                 resetBallAttached();
                 gameOver = false;
                 started = false;
+
+                // إيقاف وإعادة تعيين المؤقت
+                timerActive = false;
+                levelStartTimeMillis = 0;
+                timeElapsedSeconds = 0;
             } else {
                 // آخر حياة -> Game Over
                 lives = 0;
@@ -524,7 +554,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                         "Retry Level");
 
                 if (choice == 0) {
-                    // إعادة المحاولات كاملة عند إعادة اللعب (اختياري)
                     restartLevel();
                 } else {
                     returnToMenu();
@@ -536,13 +565,15 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
     private void restartLevel() {
         started = false;
         gameOver = false;
-        // إعادة الكرة
         resetBallAttached();
-        // نعيد الـ bricks كما في النسخة الأصلية
         createBricksByLevel();
         score = 0;
-        // إعادة المحاولات كاملة عند restart
         lives = maxLives;
+
+        // إعادة تعيين المؤقت
+        timerActive = false;
+        levelStartTimeMillis = 0;
+        timeElapsedSeconds = 0;
     }
 
     private void returnToMenu() {
@@ -554,15 +585,13 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
                 if (w instanceof javax.swing.JFrame) {
                     javax.swing.JFrame frame = (javax.swing.JFrame) w;
                     frame.getContentPane().removeAll();
-                    new GameWindow();
+                    new GameWindow(); // افترض وجود GameWindow
                     frame.dispose();
                     break;
                 }
             }
         });
     }
-
-
 
     private void resetBallAttached() {
         double cx;
@@ -595,14 +624,26 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         if (leftActive) paddleLeft.y = initialY;
         if (rightActive) paddleRight.y = initialY;
 
-        lives = maxLives; // reset lives here
+        lives = maxLives;
         resetBallAttached();
+
+        // إعادة تعيين المؤقت
+        timerActive = false;
+        levelStartTimeMillis = 0;
+        timeElapsedSeconds = 0;
     }
 
     private void startBall() {
         ball.vx = (Math.random() > 0.5 ? 1 : -1) * currentBallSpeed;
         ball.vy = currentBallSpeed;
         started = true;
+
+        // بدء المؤقت عند إطلاق الكرة
+        if (!timerActive) {
+            levelStartTimeMillis = System.currentTimeMillis();
+            timerActive = true;
+            timeElapsedSeconds = 0;
+        }
     }
 
     public void setLevel(int level) {
@@ -615,7 +656,6 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         if (players > 2) players = 2;
         this.players = players;
 
-        // set flags immediately so init() or other flows can rely on them
         if (players == 1) {
             rightActive = true;
             leftActive = false;
@@ -625,7 +665,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         }
     }
 
-    // ------------- key listener --------------
+    // ----- KeyListener -----
     @Override
     public void keyPressed(KeyEvent e) {
         switch (e.getKeyCode()) {
@@ -638,7 +678,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
             case KeyEvent.VK_W: wKey = true; break;
             case KeyEvent.VK_S: sKey = true; break;
             case KeyEvent.VK_ENTER:
-                if (!started) startBall();
+                if (!started && !gameOver) startBall();
                 break;
         }
     }
@@ -659,18 +699,34 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
 
     @Override public void keyTyped(KeyEvent e) {}
 
-    // MouseListener methods
+    // ----- MouseListener / MouseMotionListener (مصادر جاهزة للتوسع) -----
     @Override public void mouseClicked(java.awt.event.MouseEvent e) {}
     @Override public void mousePressed(java.awt.event.MouseEvent e) {}
     @Override public void mouseReleased(java.awt.event.MouseEvent e) {}
     @Override public void mouseEntered(java.awt.event.MouseEvent e) {}
     @Override public void mouseExited(java.awt.event.MouseEvent e) {}
-
-    // MouseMotionListener methods
     @Override public void mouseDragged(java.awt.event.MouseEvent e) {}
     @Override public void mouseMoved(java.awt.event.MouseEvent e) {}
 
-    // -------------- inner classes --------------
+    // ----- Helpers -----
+    private void attachBallAboveActivePaddle() {
+        double centerX;
+        double attachY;
+        if (rightActive && !leftActive) {
+            centerX = paddleRight.x + paddleRight.w / 2.0;
+            attachY = paddleRight.y;
+        } else if (leftActive && !rightActive) {
+            centerX = paddleLeft.x + paddleLeft.w / 2.0;
+            attachY = paddleLeft.y;
+        } else {
+            centerX = (paddleLeft.x + paddleLeft.w / 2 + paddleRight.x + paddleRight.w / 2) / 2.0;
+            attachY = Math.min(paddleLeft.y, paddleRight.y);
+        }
+        ball.x = centerX - ball.size / 2;
+        ball.y = attachY + 20;
+    }
+
+    // ----- Inner classes -----
     static class Paddle {
         double x, y, w, h;
         Paddle(double x, double y, double w, double h) {
@@ -705,4 +761,3 @@ public class GLCanvasProject implements GLEventListener, KeyListener, java.awt.e
         }
     }
 }
-
