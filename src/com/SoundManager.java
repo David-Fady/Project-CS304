@@ -19,13 +19,16 @@ public class SoundManager {
     private static final String LEVEL_WIN_FILE = "sounds/win.wav";
     private static final String GAME_LOST_FILE = "sounds/lost.wav";
 
-    // 3. الباني (Constructor) - يستدعي loadSounds()
+    // 3. متغير لتتبع حالة كتم الصوت
+    private boolean isMuted = false;
+
+    // 4. الباني (Constructor) - يستدعي loadSounds()
     public SoundManager() {
         // تحميل جميع الأصوات عند إنشاء الكائن
         loadSounds();
     }
 
-    // 4. الدالة المفقودة التي تسببت في الخطأ
+    // 5. الدالة المفقودة التي تسببت في الخطأ
     private void loadSounds() {
         ballBounceClip = loadClip(BALL_BOUNCE_FILE);
         brickExplodeClip = loadClip(BRICK_EXPLODE_FILE);
@@ -33,7 +36,7 @@ public class SoundManager {
         gameLostClip = loadClip(GAME_LOST_FILE);
     }
 
-    // 5. دالة تحميل مقطع صوتي واحد
+    // 6. دالة تحميل مقطع صوتي واحد
     private Clip loadClip(String filename) {
         try {
             URL soundUrl = SoundManager.class.getResource(filename);
@@ -60,27 +63,49 @@ public class SoundManager {
         }
     }
 
-    // 6. دوال تشغيل الأصوات
+    // 7. دوال تشغيل الأصوات مع التحقق من حالة كتم الصوت
     public void playBallBounce() {
-        playSound(ballBounceClip);
+        if (!isMuted) {
+            playSound(ballBounceClip);
+        }
     }
 
     public void playBrickExplode() {
-        playSound(brickExplodeClip);
+        if (!isMuted) {
+            playSound(brickExplodeClip);
+        }
     }
 
     public void playLevelWin() {
-        playSound(levelWinClip);
+        if (!isMuted) {
+            playSound(levelWinClip);
+        }
     }
 
     public void playGameLost() {
-        playSound(gameLostClip);
+        if (!isMuted) {
+            playSound(gameLostClip);
+        }
     }
 
     private void playSound(Clip clip) {
-        if (clip != null) {
+        if (clip != null && !isMuted) {
             clip.setFramePosition(0);
             clip.start();
         }
+    }
+
+    // 8. دوال التحكم في كتم الصوت
+    public void toggleMute() {
+        isMuted = !isMuted;
+        System.out.println("Sound is now " + (isMuted ? "MUTED" : "UNMUTED"));
+    }
+
+    public void setMuted(boolean muted) {
+        this.isMuted = muted;
+    }
+
+    public boolean isMuted() {
+        return isMuted;
     }
 }
