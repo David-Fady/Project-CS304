@@ -9,10 +9,13 @@ import java.util.*;
 import java.awt.event.KeyEvent;
 import java.awt.event.KeyListener;
 import java.util.List;
+import java.util.Iterator;
+import javax.swing.JOptionPane;
 
 /**
  * GLCanvasProject - لعبة بسيطة (Ball / Paddle / Bricks) مع مؤقت و حياة وطبقات مستويات.
- * تم تنظيف الكود وإضافة تعليقات عربية لسهولة القراءة.
+ *
+ * **التعديل الأخير:** تم نقل عرض الوقت ليحل محل عرض "Mode" وتم إلغاء عرض Mode.
  */
 public class GLCanvasProject implements GLEventListener, KeyListener,
         java.awt.event.MouseListener, java.awt.event.MouseMotionListener {
@@ -59,9 +62,9 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
 
     // ===== TIMER VARIABLES - متغييرات المؤقت =====
     private long levelStartTimeMillis = 0;           // وقت بداية المستوى بالمللي ثانية
-    private final long TIME_LIMIT_SECONDS = 30;      // الحد الأقصى للوقت بالمستوى (ثواني)
     private long timeElapsedSeconds = 0;             // الوقت المنقضي الآن
     private boolean timerActive = false;             // هل المؤقت يعمل؟
+    private long timeToCompleteLevel = 0;            // الوقت المستغرق لإنهاء المستوى (بالثواني)
 
     public GLCanvasProject() {
         // الافتراضي: players = 1، يمكن استدعاء setPlayers قبل init
@@ -132,28 +135,25 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         // رسم الكرة
         drawCircle(gl, ball.x + ball.size / 2, ball.y + ball.size / 2, ball.size / 2, 1f, 0.9f, 0.0f);
 
-        // رسم النصوص (score, level, mode, timer)
+        // رسم النصوص (score, level, timer)
         textRenderer.beginRendering(500, 300);
         textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
         textRenderer.draw("Score: " + score, 10, 10);
         textRenderer.draw("Level: " + level, 400, 10);
-        String modeLabel = (leftActive && rightActive) ? "Two Players" : (rightActive ? "One Player" : "One Player (Left?)");
-        textRenderer.draw("Mode: " + modeLabel, 200, 10);
 
-        // ===== TIMER DISPLAY - عرض المؤقت =====
+        // ===== TIMER DISPLAY - عرض المؤقت (التعديل هنا) =====
         if (!gameOver) {
-            long timeLeft = TIME_LIMIT_SECONDS - timeElapsedSeconds;
             if (started && timerActive) {
-                // احمر اذا تبقى 10 ثواني او اقل
-                textRenderer.setColor(timeLeft <= 10 ? 0.9f : 1.0f,
-                        timeLeft <= 10 ? 0.0f : 1.0f,
-                        0f, 1.0f);
-                textRenderer.draw("Time Left: " + Math.max(0, timeLeft), 200, 270);
-            } else if (!started && TIME_LIMIT_SECONDS > 0) {
+                // عرض الوقت المنقضي في المنتصف أسفل الشاشة (مكان Mode سابقاً)
                 textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
-                textRenderer.draw("Press ENTER to Start. Time Limit: " + TIME_LIMIT_SECONDS + "s", 100, 270);
+                textRenderer.draw("Time Elapsed: " + timeElapsedSeconds + "s", 170, 10); // <== تم تغيير الـ Y و الـ X
+            } else if (!started) {
+                // عرض رسالة البدء والوقت المنقضي عند التوقف (بعد خسارة قلب)
+                textRenderer.setColor(1.0f, 1.0f, 0f, 1.0f);
+                textRenderer.draw("Press ENTER to Start ", 180, 130);
             }
         }
+        // تم حذف سطر عرض "Mode"
         textRenderer.endRendering();
         // ===== END TIMER DISPLAY =====
 
@@ -219,8 +219,8 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         gl.glBegin(GL.GL_POLYGON);
         int steps = 32;
         for (int i = 0; i < steps; i++) {
-            double ang = 2 * Math.PI * i / steps;
-            gl.glVertex2d(Math.cos(ang) * radius + cx, Math.sin(ang) * radius + cy);
+            double t = 2 * Math.PI * i / steps;
+            gl.glVertex2d(Math.cos(t) * radius + cx, Math.sin(t) * radius + cy);
         }
         gl.glEnd();
     }
@@ -260,7 +260,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         gl.glEnd();
     }
 
-    // ----- Game logic: إنشاء الطوب بحسب النمط والمستوى -----
+    // ----- Game logic: إنشاء الطوب بحسب النمط والمستوى (نفس الكود السابق) -----
     private void createBricksByLevel() {
         bricks.clear();
 
@@ -469,31 +469,10 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
     private void updateTimerAndCheckTimeOut() {
         if (started && !gameOver && timerActive) {
             long currentTimeMillis = System.currentTimeMillis();
+            // نحسب الوقت المنقضي بناءً على وقت البدء والمحفوظ
             timeElapsedSeconds = (currentTimeMillis - levelStartTimeMillis) / 1000;
-
-            if (timeElapsedSeconds >= TIME_LIMIT_SECONDS) {
-                // انتهى الوقت -> خسارة فورية
-                timerActive = false;
-                gameOver = true;
-                if (soundManager != null) soundManager.playGameLost();
-
-                int choice = javax.swing.JOptionPane.showOptionDialog(null,
-                        "Time's Up! You Lost!\nYour Score: " + score + "\nTime Limit: " + TIME_LIMIT_SECONDS + " seconds.",
-                        "Game Over (Time Limit)",
-                        javax.swing.JOptionPane.YES_NO_OPTION,
-                        javax.swing.JOptionPane.INFORMATION_MESSAGE,
-                        null,
-                        new String[]{"Retry Level", "Back to Menu"},
-                        "Retry Level");
-
-                if (choice == 0) {
-                    restartLevel();
-                } else {
-                    returnToMenu();
-                }
-            }
         } else if (!started && timerActive) {
-
+            // تجميد المؤقت إذا توقفت اللعبة دون إعادة التعيين
             timerActive = false;
         }
     }
@@ -504,11 +483,15 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             levelCompleted = true;
             if (soundManager != null) soundManager.playLevelWin();
 
+            // حفظ الوقت المستغرق لإكمال المستوى
+            timeToCompleteLevel = timeElapsedSeconds;
 
             timerActive = false;
             levelStartTimeMillis = 0;
 
-            javax.swing.JOptionPane.showMessageDialog(null, "Level " + level + " Completed!");
+            JOptionPane.showMessageDialog(null,
+                    "Level " + level + " Completed!" +
+                            "\nTime Taken: " + timeToCompleteLevel + " seconds!"); // عرض وقت الإنجاز
 
             level++;
             currentBallSpeed += 0.5;
@@ -519,6 +502,10 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             resetBallAttached();
 
             levelCompleted = false;
+
+            // إعادة تعيين وقت الانقضاء ووقت الإنجاز للمستوى الجديد
+            timeToCompleteLevel = 0;
+            timeElapsedSeconds = 0;
         }
     }
 
@@ -528,27 +515,28 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
             if (lives > 1) {
                 lives--;
                 if (soundManager != null) soundManager.playGameLost();
-                javax.swing.JOptionPane.showMessageDialog(null, "You lost a life! Lives left: " + lives);
+                JOptionPane.showMessageDialog(null, "You lost a life! Lives left: " + lives);
 
-                // إعادة الكرة متعلقة دون إعادة الطوب أو المستوى
+                // إعادة الكرة متعلقة
                 resetBallAttached();
                 gameOver = false;
                 started = false;
 
-                // إيقاف وإعادة تعيين المؤقت
+                // تجميد المؤقت: نوقف التحديث لكن لا نعيد timeElapsedSeconds إلى الصفر
                 timerActive = false;
-                levelStartTimeMillis = 0;
-                timeElapsedSeconds = 0;
             } else {
                 // آخر حياة -> Game Over
                 lives = 0;
                 gameOver = true;
                 if (soundManager != null) soundManager.playGameLost();
-                int choice = javax.swing.JOptionPane.showOptionDialog(null,
-                        "You Lost!\nYour Score: " + score,
+
+                // عرض الوقت المستغرق حتى الخسارة
+                int choice = JOptionPane.showOptionDialog(null,
+                        "You Lost! Game Over.\nYour Score: " + score +
+                                "\nTime Elapsed Before Loss: " + timeElapsedSeconds + " seconds.",
                         "Game Over",
-                        javax.swing.JOptionPane.YES_NO_OPTION,
-                        javax.swing.JOptionPane.INFORMATION_MESSAGE,
+                        JOptionPane.YES_NO_OPTION,
+                        JOptionPane.INFORMATION_MESSAGE,
                         null,
                         new String[]{"Retry Level", "Back to Menu"},
                         "Retry Level");
@@ -570,7 +558,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         score = 0;
         lives = maxLives;
 
-        // إعادة تعيين المؤقت
+        // إعادة تعيين المؤقت للمستوى الجديد
         timerActive = false;
         levelStartTimeMillis = 0;
         timeElapsedSeconds = 0;
@@ -627,10 +615,11 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         lives = maxLives;
         resetBallAttached();
 
-        // إعادة تعيين المؤقت
+        // إعادة تعيين المؤقت بالكامل
         timerActive = false;
         levelStartTimeMillis = 0;
         timeElapsedSeconds = 0;
+        timeToCompleteLevel = 0;
     }
 
     private void startBall() {
@@ -640,9 +629,10 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
 
         // بدء المؤقت عند إطلاق الكرة
         if (!timerActive) {
-            levelStartTimeMillis = System.currentTimeMillis();
+            // التعديل الرئيسي: تعيين وقت البدء للحفاظ على العد المستمر
+            // وقت البدء الجديد = الوقت الحالي بالمللي - (الوقت المنقضي بالثواني * 1000)
+            levelStartTimeMillis = System.currentTimeMillis() - (timeElapsedSeconds * 1000);
             timerActive = true;
-            timeElapsedSeconds = 0;
         }
     }
 
@@ -726,7 +716,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
         ball.y = attachY + 20;
     }
 
-    // ----- Inner classes -----
+    // ----- Inner classes (نفس الكود السابق) -----
     static class Paddle {
         double x, y, w, h;
         Paddle(double x, double y, double w, double h) {
