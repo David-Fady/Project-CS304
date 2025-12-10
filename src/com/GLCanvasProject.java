@@ -99,7 +99,7 @@ public class GLCanvasProject implements GLEventListener, KeyListener,
 
         textRenderer = new TextRenderer(new Font("Arial", Font.BOLD, 16));
         // افترض وجود مُنفذ
-        // soundManager = new SoundManager();
+         soundManager = new SoundManager();
 
         lives = maxLives;
     }
