@@ -1,4 +1,4 @@
- package com;
+package com;
 
 import com.sun.opengl.util.FPSAnimator;
 import javax.media.opengl.GLJPanel;
@@ -7,7 +7,7 @@ import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
-public class GameWindow extends JFrame {
+public class GameWindow extends JFrame implements GLCanvasProject.GameEndListener {
 
     private CardLayout card;
     private JPanel container;
@@ -20,7 +20,6 @@ public class GameWindow extends JFrame {
     private GLCanvasProject lo;
     private FPSAnimator animator;
 
-    // متغير لتخزين حالة كتم الصوت
     private static boolean isMuted = false;
 
     public GameWindow() {
@@ -67,18 +66,14 @@ public class GameWindow extends JFrame {
     }
 
     private void chooseLevelAndStart(int players) {
-        // 1. Defining dropdown options (Levels 1 to 6)
-        Integer[] levels = {1, 2, 3, 4, 5, 6 , 7 , 8 , 9 , 10};
+        Integer[] levels = {1, 2, 3, 4, 5};
 
-        // 2. Creating the dropdown list (JCombo Box)
         JComboBox<Integer> levelChooser = new JComboBox<>(levels);
 
-        // 3. Creating a custom message panel containing the dropdown
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.add(new JLabel("Select Starting Level:"), BorderLayout.NORTH);
         panel.add(levelChooser, BorderLayout.CENTER);
 
-        // 4. Displaying the modal dialog (JOptionPane)
         int option = JOptionPane.showOptionDialog(
                 this,
                 panel,
@@ -86,21 +81,18 @@ public class GameWindow extends JFrame {
                 JOptionPane.OK_CANCEL_OPTION,
                 JOptionPane.PLAIN_MESSAGE,
                 null,
-                new String[]{"Start Game", "Cancel"}, // Dialog buttons
+                new String[]{"Start Game", "Cancel"},
                 "Start Game"
         );
 
         int chosenLevel = 1;
 
-        // 5. Extracting the selected value if the user clicked "Start Game" (OK)
         if (option == JOptionPane.OK_OPTION) {
-            // Ensure the value is not null before casting it to Integer
             Object selected = levelChooser.getSelectedItem();
             if (selected instanceof Integer) {
                 chosenLevel = (Integer) selected;
             }
         } else {
-            // If the user clicks Cancel, return to the startMenu
             card.show(container, "startMenu");
             return;
         }
@@ -110,14 +102,32 @@ public class GameWindow extends JFrame {
     }
 
     private void startGame(int players, int level) {
+        Component gameComponentToRemove = null;
+        for (Component comp : container.getComponents()) {
+            if (comp.getClass().getName().contains("JPanel") && comp != menu && comp != startMenu && comp != howToPlay) {
+                gameComponentToRemove = comp;
+                break;
+            }
+        }
+
+        if (gameComponentToRemove != null) {
+            container.remove(gameComponentToRemove);
+            container.revalidate();
+            container.repaint();
+        }
+
         cleanupGL();
 
         lo = new GLCanvasProject();
+     
+        lo.setMenuListener(this);
+
         lo.setPlayers(players);
         lo.setLevel(level);
 
-        // تمرير حالة كتم الصوت إلى GLCanvasProject
         lo.setSoundMuted(isMuted);
+
+        lo.setPaused(false);
 
         GLJPanel = new GLJPanel();
         GLJPanel.addGLEventListener(lo);
@@ -154,6 +164,10 @@ public class GameWindow extends JFrame {
         pauseButton.addActionListener(e -> {
             try { if (animator != null && animator.isAnimating()) animator.stop(); } catch (Exception ignored) {}
 
+            if (lo != null) {
+                lo.setPaused(true);
+            }
+
             String[] options = {"Resume", "Mute/Unmute", "Back to Menu"};
             int choice = JOptionPane.showOptionDialog(GameWindow.this,
                     "Game Paused\n" +
@@ -166,18 +180,20 @@ public class GameWindow extends JFrame {
                     options[0]);
 
             if (choice == 0) {
-                // Resume
+                
+                if (lo != null) {
+                    lo.setPaused(false);
+                }
                 try { if (animator != null && !animator.isAnimating()) animator.start(); } catch (Exception ignored) {}
             } else if (choice == 1) {
-                // Mute/Unmute
+              
                 toggleMute();
                 if (lo != null) {
                     lo.toggleSoundMute();
                 }
-                // إعادة فتح نافذة الإيقاف مع الحالة المحدثة
                 pauseButton.doClick();
             } else if (choice == 2) {
-                // Back to Menu
+         
                 cleanupGL();
                 card.show(container, "menu");
             }
@@ -192,12 +208,27 @@ public class GameWindow extends JFrame {
         GLJPanel.requestFocusInWindow();
     }
 
+  
+    @Override
+    public void onReturnToMenuRequest() {
+       
+
+        
+        SwingUtilities.invokeLater(() -> {
+            cleanupGL();
+            card.show(container, "menu"); 
+        });
+    }
+
     private void toggleMute() {
         isMuted = !isMuted;
         System.out.println("Global mute state changed to: " + isMuted);
     }
 
     private void cleanupGL() {
+        if (lo != null) {
+            lo.setPaused(false);
+        }
         try { if (animator != null) animator.stop(); } catch (Exception ignored) {}
         animator = null;
         GLJPanel = null;
